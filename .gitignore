@@ -1,0 +1,96 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+build/
+out/
+target/
+bin/
+obj/
+
+# Cache
+.cache/
+.temp/
+tmp/
+*.cache
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# JetBrains
+*.ipr
+*.iws
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Java
+*.class
+*.jar
+*.war
+
+# C/C++
+*.o
+*.obj
+*.exe
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Test results
+test-results/
+
+# Lock files (uncomment if you don't want to commit them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# Misc
+*.swp
+*.swo
+*~

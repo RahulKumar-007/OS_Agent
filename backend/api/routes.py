@@ -317,6 +317,8 @@ class SearchRequest(BaseModel):
     max_size: Optional[str] = ""
     modified_after: Optional[str] = ""
     modified_before: Optional[str] = ""
+    created_after: Optional[str] = ""
+    created_before: Optional[str] = ""
     owner: Optional[str] = ""
     include_hidden: Optional[bool] = False
     include_dirs: Optional[bool] = False
@@ -398,6 +400,117 @@ async def search_content(request: ContentSearchRequest):
     tool = registry.get("search_by_content")
     if not tool:
         raise HTTPException(status_code=503, detail="search_by_content tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Document Search ──────────────────────────────────────
+class DocumentSearchRequest(BaseModel):
+    path: str
+    query: str
+    extensions: Optional[str] = ""
+    case_sensitive: Optional[bool] = False
+    max_files: Optional[int] = 50
+    max_results: Optional[int] = 30
+    recursive: Optional[bool] = True
+    context_chars: Optional[int] = 100
+    max_pages: Optional[int] = 20
+    ocr_language: Optional[str] = "eng"
+
+
+@router.post("/api/search/documents")
+async def search_documents(request: DocumentSearchRequest):
+    """Search for text content inside documents (PDF, Office, images via OCR, code/text files)."""
+    tool = registry.get("search_documents")
+    if not tool:
+        raise HTTPException(status_code=503, detail="search_documents tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Semantic Search ──────────────────────────────────────
+class SemanticSearchRequest(BaseModel):
+    path: str
+    query: str
+    extensions: Optional[str] = ""
+    max_files: Optional[int] = 50
+    max_results: Optional[int] = 30
+    recursive: Optional[bool] = True
+
+
+@router.post("/api/search/semantic")
+async def search_semantic(request: SemanticSearchRequest):
+    """Natural language semantic search across files and document content."""
+    tool = registry.get("semantic_search")
+    if not tool:
+        raise HTTPException(status_code=503, detail="semantic_search tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Code Search ──────────────────────────────────────────
+class CodeSearchRequest(BaseModel):
+    path: str
+    query: str
+    language: Optional[str] = ""
+    search_in: Optional[str] = "all"
+    max_results: Optional[int] = 30
+    recursive: Optional[bool] = True
+    include_tests: Optional[bool] = True
+
+
+@router.post("/api/search/code")
+async def search_code(request: CodeSearchRequest):
+    """Search inside code repositories by function/class names and patterns."""
+    tool = registry.get("search_code")
+    if not tool:
+        raise HTTPException(status_code=503, detail="search_code tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Document Text Extraction ─────────────────────────────
+class ExtractTextRequest(BaseModel):
+    path: str
+    max_pages: Optional[int] = 20
+    ocr_language: Optional[str] = "eng"
+
+
+@router.post("/api/extract/text")
+async def extract_text(request: ExtractTextRequest):
+    """Extract text from a single document (PDF, Office, image via OCR, code/text)."""
+    tool = registry.get("extract_document_text")
+    if not tool:
+        raise HTTPException(status_code=503, detail="extract_document_text tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class BatchExtractRequest(BaseModel):
+    path: str
+    recursive: Optional[bool] = True
+    extensions: Optional[str] = ""
+    max_files: Optional[int] = 50
+    max_pages: Optional[int] = 20
+    ocr_language: Optional[str] = "eng"
+
+
+@router.post("/api/extract/batch")
+async def extract_batch(request: BatchExtractRequest):
+    """Extract text from all supported documents in a directory."""
+    tool = registry.get("batch_extract_text")
+    if not tool:
+        raise HTTPException(status_code=503, detail="batch_extract_text tool not available")
     result = await tool.execute(request.model_dump())
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
@@ -628,6 +741,57 @@ async def fileop_organize_date(req: FileOpRequest):
     """Organize files by modification date into date folders."""
     tool = registry.get("organize_by_date")
     result = await tool.execute({"path": req.path, "format": req.format or "month", "dry_run": req.dry_run})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"status": "ok", "message": result.message, "data": result.data}
+
+
+@router.post("/api/fileop/batch-move")
+async def fileop_batch_move(req: FileOpRequest):
+    """Move multiple files matching a pattern to a target directory."""
+    tool = registry.get("batch_move")
+    result = await tool.execute({
+        "source_dir": req.path,
+        "target_dir": req.target or "",
+        "pattern": req.action or "",
+        "extensions": req.format or "",
+        "recursive": False,
+        "dry_run": req.dry_run,
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"status": "ok", "message": result.message, "data": result.data}
+
+
+class DeleteDupRequest(BaseModel):
+    path: str
+    extension: Optional[str] = None
+    dry_run: Optional[bool] = True
+    keep_newest: Optional[bool] = False
+
+
+@router.post("/api/fileop/delete-duplicates")
+async def fileop_delete_duplicates(req: DeleteDupRequest):
+    """Find and delete duplicate files, keeping one copy."""
+    tool = registry.get("delete_duplicates")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"status": "ok", "message": result.message, "data": result.data}
+
+
+class OrganizeAIRequest(BaseModel):
+    path: str
+    categories: Optional[str] = ""
+    dry_run: Optional[bool] = False
+    prompt: Optional[str] = ""
+
+
+@router.post("/api/fileop/organize-by-ai")
+async def fileop_organize_ai(req: OrganizeAIRequest):
+    """Organize files using LLM-powered AI categorization."""
+    tool = registry.get("organize_by_ai")
+    result = await tool.execute(req.model_dump())
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
     return {"status": "ok", "message": result.message, "data": result.data}

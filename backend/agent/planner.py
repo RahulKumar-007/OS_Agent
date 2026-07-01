@@ -3,11 +3,12 @@ Agent Planner.
 Takes natural language input → creates a structured execution plan.
 The planner NEVER executes. It only creates tasks.
 """
+
 import json
 from typing import Dict, List, Optional
+
 from llm.client import LLMClient
 from tools.base import ToolRegistry
-
 
 PLANNER_SYSTEM_PROMPT = """You are a filesystem planning agent. Your job is to take a user's natural language request about file operations and create a structured execution plan.
 
@@ -21,6 +22,10 @@ RULES:
 4. Each step must use exactly one tool.
 5. Order steps logically (scan before move, create dirs before moving files into them).
 6. For destructive actions (delete, move), be explicit about what will be affected.
+7. **CRITICAL: If a user mentions a file/folder by name but does NOT provide the full path, you MUST search for it first using 'semantic_search' or 'search_files' before performing any operation on it. Users rarely know exact paths - searching is mandatory for file operations.**
+   - For documents/downloads, search in ~/Downloads, ~/Documents first before searching entire home directory
+   - Use recursive: true to search subdirectories
+   - Be specific with the query - include file extension if mentioned
 
 Respond ONLY with valid JSON in this exact format:
 {{
@@ -33,12 +38,34 @@ Respond ONLY with valid JSON in this exact format:
             "description": "what this step does",
             "args": {{"arg1": "value1"}},
             "depends_on": [],
-            "is_destructive": false
+            "is_destructive": false,
+            "result_key": "optional_key_to_extract_from_result"
         }}
     ],
     "warnings": ["any warnings or concerns"],
     "estimated_files_affected": 0
 }}
+
+**MULTI-STEP RESULT PASSING:**
+When step B needs results from step A, use `depends_on` and `result_key`:
+- Step A searches for a file → `result_key` extracts specific data from the search results
+- Step B operates on the file → `depends_on: [0]` means "use step 0's extracted result"
+- In step B's args, use placeholder `{{{{step_0}}}}` (literal text with 4 braces in JSON) which will be replaced with the extracted value
+- `result_key` supports dot notation for nested extraction: "results.0.path" means "get first item in results array, then get its path field"
+- IMPORTANT: When writing the placeholder in JSON, escape the braces: use the string "{{{{step_0}}}}" which becomes {{{{step_0}}}} in the actual JSON value
+
+Example - Rename a file by searching for it first:
+Step 0: {{"tool": "search_files", "args": {{"path": "~", "pattern": "**/*Bodyweight*Progression*.pdf"}}, "result_key": "0.path"}}
+Step 1: {{"tool": "rename_file", "args": {{"path": "{{{{step_0}}}}", "new_name": "Bodyweight_Progression.pdf"}}, "depends_on": [0]}}
+
+NOTE: For recursive search with search_files, use '**/' prefix in pattern:
+  - "*.pdf" searches only in the specified directory
+  - "**/*.pdf" searches in the directory AND all subdirectories recursively
+  - "**/*keyword*.pdf" searches recursively for files containing 'keyword' in the name
+
+Use 'search_files' with glob patterns for simple filename searches. Use 'semantic_search' only when you need natural language understanding of content.
+
+If the search tool returns a list like `[{{"path": "/home/user/file.pdf"}}]`, use `result_key: "0.path"` on the search step to extract the first result's path. That extracted value then replaces `{{{{step_0}}}}` in the next step.
 
 If the request is unclear, still create a plan but add questions to the warnings array.
 If the request cannot be accomplished with the available tools, explain why in the summary and return an empty steps array.
@@ -59,11 +86,11 @@ class Planner:
     ) -> Dict:
         """
         Create an execution plan from user input.
-        
+
         Args:
             user_input: Natural language request from the user
             context: Optional context (memories, previous results, etc.)
-            
+
         Returns:
             Dict with plan structure
         """
@@ -140,6 +167,8 @@ class Planner:
             validated_steps.append(step)
 
         plan["steps"] = validated_steps
-        plan["has_destructive_steps"] = any(s["is_destructive"] for s in validated_steps)
+        plan["has_destructive_steps"] = any(
+            s["is_destructive"] for s in validated_steps
+        )
 
         return plan

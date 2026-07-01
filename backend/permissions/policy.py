@@ -37,11 +37,28 @@ class PolicyEngine:
         return os.path.normpath(os.path.expanduser(path))
 
     def _is_under_path(self, target: str, base: str) -> bool:
-        """Check if target is under base path (or is the base path itself)."""
-        target = self._normalize_path(target)
-        base = self._normalize_path(base)
-        # Check if target starts with base
-        return target == base or target.startswith(base + os.sep)
+        """Check if target is under base path (or is the base path itself).
+
+        Supports glob patterns in base (e.g. '~/.*' to match hidden dirs).
+        """
+        target_norm = self._normalize_path(target)
+        base_expanded = os.path.expanduser(base)
+
+        # If the base contains a glob wildcard, use fnmatch on the full path
+        # and also check every ancestor segment.
+        if any(c in base_expanded for c in ("*", "?", "[")):
+            path_to_test = target_norm
+            while True:
+                if fnmatch.fnmatch(path_to_test, base_expanded):
+                    return True
+                parent = os.path.dirname(path_to_test)
+                if parent == path_to_test:  # reached filesystem root
+                    break
+                path_to_test = parent
+            return False
+
+        base_norm = self._normalize_path(base)
+        return target_norm == base_norm or target_norm.startswith(base_norm + os.sep)
 
     def validate(self, path: str, action: str = "access") -> dict:
         """

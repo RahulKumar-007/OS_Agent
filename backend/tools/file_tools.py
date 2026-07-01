@@ -1,14 +1,16 @@
 """
 Filesystem tools for the agent.
-Handles: list_directory, read_file_metadata, search_files, 
+Handles: list_directory, read_file_metadata, search_files,
          move_file, copy_file, rename_file, delete_file, create_directory
 """
+
+import glob
 import os
 import shutil
-import glob
 import stat
 from datetime import datetime
 from typing import Dict
+
 from tools.base import Tool, ToolResult
 
 
@@ -37,13 +39,17 @@ class ListDirectoryTool(Tool):
                         full_path = os.path.join(root, name)
                         try:
                             st = os.stat(full_path)
-                            entries.append({
-                                "name": name,
-                                "path": full_path,
-                                "is_dir": os.path.isdir(full_path),
-                                "size": st.st_size,
-                                "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
-                            })
+                            entries.append(
+                                {
+                                    "name": name,
+                                    "path": full_path,
+                                    "is_dir": os.path.isdir(full_path),
+                                    "size": st.st_size,
+                                    "modified": datetime.fromtimestamp(
+                                        st.st_mtime
+                                    ).isoformat(),
+                                }
+                            )
                         except (PermissionError, OSError):
                             continue
             else:
@@ -51,13 +57,17 @@ class ListDirectoryTool(Tool):
                     full_path = os.path.join(path, name)
                     try:
                         st = os.stat(full_path)
-                        entries.append({
-                            "name": name,
-                            "path": full_path,
-                            "is_dir": os.path.isdir(full_path),
-                            "size": st.st_size,
-                            "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
-                        })
+                        entries.append(
+                            {
+                                "name": name,
+                                "path": full_path,
+                                "is_dir": os.path.isdir(full_path),
+                                "size": st.st_size,
+                                "modified": datetime.fromtimestamp(
+                                    st.st_mtime
+                                ).isoformat(),
+                            }
+                        )
                     except (PermissionError, OSError):
                         continue
 
@@ -95,17 +105,19 @@ class ReadFileMetadataTool(Tool):
                 "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
                 "accessed": datetime.fromtimestamp(st.st_atime).isoformat(),
             }
-            return ToolResult(success=True, data=metadata, message=f"Metadata for {path}")
+            return ToolResult(
+                success=True, data=metadata, message=f"Metadata for {path}"
+            )
         except PermissionError:
             return ToolResult(success=False, message=f"Permission denied: {path}")
 
 
 class SearchFilesTool(Tool):
     name = "search_files"
-    description = "Search for files matching a pattern (glob) within a directory."
+    description = "Search for files matching a glob pattern. Use '**/' prefix for recursive search across subdirectories."
     parameters_schema = {
         "path": "Directory to search in",
-        "pattern": "Glob pattern (e.g., '*.pdf', '**/*.jpg')",
+        "pattern": "Glob pattern. Use '**/' for recursive: '*.pdf' (current dir only), '**/*.pdf' (recursive), '**/*keyword*.pdf' (recursive with keyword)",
     }
 
     async def execute(self, args: Dict) -> ToolResult:
@@ -122,12 +134,14 @@ class SearchFilesTool(Tool):
             for match in matches:
                 try:
                     st = os.stat(match)
-                    results.append({
-                        "path": match,
-                        "name": os.path.basename(match),
-                        "size": st.st_size,
-                        "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
-                    })
+                    results.append(
+                        {
+                            "path": match,
+                            "name": os.path.basename(match),
+                            "size": st.st_size,
+                            "modified": datetime.fromtimestamp(st.st_mtime).isoformat(),
+                        }
+                    )
                 except (PermissionError, OSError):
                     continue
 
@@ -157,7 +171,9 @@ class MoveFileTool(Tool):
 
         try:
             # Create target directory if needed
-            target_dir = os.path.dirname(target) if not os.path.isdir(target) else target
+            target_dir = (
+                os.path.dirname(target) if not os.path.isdir(target) else target
+            )
             os.makedirs(target_dir, exist_ok=True)
 
             shutil.move(source, target)
@@ -235,7 +251,9 @@ class RenameFileTool(Tool):
 
 class DeleteFileTool(Tool):
     name = "delete_file"
-    description = "Delete a file or empty directory. DESTRUCTIVE - requires explicit approval."
+    description = (
+        "Delete a file or empty directory. DESTRUCTIVE - requires explicit approval."
+    )
     parameters_schema = {
         "path": "Path to the file/directory to delete",
     }
@@ -290,6 +308,7 @@ class OpenFileTool(Tool):
 
     async def execute(self, args: Dict) -> ToolResult:
         import subprocess
+
         path = os.path.expanduser(args.get("path", ""))
 
         if not os.path.exists(path):
@@ -308,7 +327,10 @@ class OpenFileTool(Tool):
                 files_affected=[path],
             )
         except FileNotFoundError:
-            return ToolResult(success=False, message="xdg-open not found. Cannot open files on this system.")
+            return ToolResult(
+                success=False,
+                message="xdg-open not found. Cannot open files on this system.",
+            )
         except Exception as e:
             return ToolResult(success=False, message=f"Open failed: {e}")
 
@@ -323,13 +345,51 @@ class ReadFileContentTool(Tool):
     }
 
     BINARY_EXTENSIONS = {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg",
-        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
-        ".mp3", ".wav", ".flac", ".ogg", ".aac", ".wma",
-        ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar",
-        ".exe", ".bin", ".so", ".dll", ".o", ".a", ".dylib",
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-        ".pyc", ".class", ".wasm",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".webp",
+        ".svg",
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".aac",
+        ".wma",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".rar",
+        ".exe",
+        ".bin",
+        ".so",
+        ".dll",
+        ".o",
+        ".a",
+        ".dylib",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".pyc",
+        ".class",
+        ".wasm",
     }
 
     async def execute(self, args: Dict) -> ToolResult:
@@ -340,7 +400,9 @@ class ReadFileContentTool(Tool):
         if not os.path.exists(path):
             return ToolResult(success=False, message=f"Path does not exist: {path}")
         if os.path.isdir(path):
-            return ToolResult(success=False, message=f"Cannot read directory as file: {path}")
+            return ToolResult(
+                success=False, message=f"Cannot read directory as file: {path}"
+            )
 
         ext = os.path.splitext(path)[1].lower()
         if ext in self.BINARY_EXTENSIONS:
@@ -379,7 +441,8 @@ class ReadFileContentTool(Tool):
                     "size": file_size,
                     "extension": ext,
                 },
-                message=f"Read {total_lines} lines from {path}" + (" (truncated)" if truncated else ""),
+                message=f"Read {total_lines} lines from {path}"
+                + (" (truncated)" if truncated else ""),
             )
         except UnicodeDecodeError:
             return ToolResult(

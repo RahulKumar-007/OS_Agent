@@ -1,28 +1,36 @@
 """
 Local Filesystem Agent — Main Application Entry Point.
 """
+
 import os
 import sys
-import yaml
 from contextlib import asynccontextmanager
+
+import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add backend to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
+from api.routes import init_dependencies, router
 from database.models import init_db
-from tools.base import registry
-from tools.file_tools import ALL_FILE_TOOLS
-from tools.duplicate_tools import ALL_DUPLICATE_TOOLS
-from tools.navigation_tools import ALL_NAVIGATION_TOOLS
-from tools.search_tools import ALL_SEARCH_TOOLS
-from tools.fileops_tools import ALL_FILEOPS_TOOLS
-from permissions.policy import PolicyEngine
 from llm.client import LLMClient
 from memory.memory_store import MemoryStore
-from api.routes import router, init_dependencies
-
+from permissions.policy import PolicyEngine
+from tools.base import registry
+from tools.document_understanding_tools import ALL_DOCUMENT_UNDERSTANDING_TOOLS
+from tools.duplicate_tools import ALL_DUPLICATE_TOOLS
+from tools.exif_tools import ALL_EXIF_TOOLS
+from tools.extraction_tools import ALL_EXTRACTION_TOOLS
+from tools.file_tools import ALL_FILE_TOOLS
+from tools.fileops_tools import ALL_FILEOPS_TOOLS
+from tools.git_tools import ALL_GIT_TOOLS
+from tools.image_understanding_tools import ALL_IMAGE_UNDERSTANDING_TOOLS
+from tools.navigation_tools import ALL_NAVIGATION_TOOLS
+from tools.search_tools import ALL_SEARCH_TOOLS
+from tools.security_tools import ALL_SECURITY_TOOLS
+from tools.terminal_tools import ALL_TERMINAL_TOOLS
 
 # ─── Configuration ──────────────────────────────────────
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -46,7 +54,20 @@ async def lifespan(app: FastAPI):
     print("✅ Database initialized")
 
     # Register all tools
-    all_tools = ALL_FILE_TOOLS + ALL_DUPLICATE_TOOLS + ALL_NAVIGATION_TOOLS + ALL_SEARCH_TOOLS + ALL_FILEOPS_TOOLS
+    all_tools = (
+        ALL_FILE_TOOLS
+        + ALL_DUPLICATE_TOOLS
+        + ALL_NAVIGATION_TOOLS
+        + ALL_SEARCH_TOOLS
+        + ALL_FILEOPS_TOOLS
+        + ALL_EXTRACTION_TOOLS
+        + ALL_DOCUMENT_UNDERSTANDING_TOOLS
+        + ALL_IMAGE_UNDERSTANDING_TOOLS
+        + ALL_SECURITY_TOOLS
+        + ALL_GIT_TOOLS
+        + ALL_TERMINAL_TOOLS
+        + ALL_EXIF_TOOLS
+    )
     for tool in all_tools:
         registry.register(tool)
     print(f"✅ Registered {len(registry._tools)} tools")
@@ -55,9 +76,37 @@ async def lifespan(app: FastAPI):
     llm_client = LLMClient(config_path=CONFIG_PATH)
     print(f"✅ LLM client ready ({llm_client.provider}: {llm_client.model})")
 
+    # Inject LLM client into tools that need it
+    semantic_tool = registry.get("semantic_search")
+    if semantic_tool:
+        semantic_tool.llm_client = llm_client
+    organize_ai_tool = registry.get("organize_by_ai")
+    if organize_ai_tool:
+        organize_ai_tool.llm_client = llm_client
+
+    # Document understanding tools
+    for tool_name in [
+        "summarize_document",
+        "explain_document",
+        "compare_documents",
+        "find_similar_documents",
+        "summarize_folder",
+    ]:
+        tool = registry.get(tool_name)
+        if tool:
+            tool.llm_client = llm_client
+
+    # Image understanding tools
+    for tool_name in ["describe_image", "search_images_by_description"]:
+        tool = registry.get(tool_name)
+        if tool:
+            tool.llm_client = llm_client
+
     # Initialize policy engine
     policy_engine = PolicyEngine(config_path=CONFIG_PATH)
-    print(f"✅ Policy engine loaded ({len(policy_engine.allowed_paths)} allowed, {len(policy_engine.denied_paths)} denied)")
+    print(
+        f"✅ Policy engine loaded ({len(policy_engine.allowed_paths)} allowed, {len(policy_engine.denied_paths)} denied)"
+    )
 
     # Initialize memory store
     memory_store = MemoryStore()
@@ -105,6 +154,7 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     host = server_config.get("host", "0.0.0.0")
     port = server_config.get("port", 8000)
     uvicorn.run("main:app", host=host, port=port, reload=True)

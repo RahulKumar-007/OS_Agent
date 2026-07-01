@@ -1,373 +1,1138 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Local Filesystem Agent — Natural language powered file management with local LLM">
-    <title>FileAgent — Local Filesystem Agent</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div id="app">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="description"
+            content="Local Filesystem Agent — Natural language powered file management with local LLM"
+        />
+        <title>FileAgent — Local Filesystem Agent</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div id="app">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <div class="logo">
+                        <div class="logo-icon">
+                            <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                />
+                            </svg>
+                        </div>
+                        <span class="logo-text">FileAgent</span>
+                    </div>
+                    <button
+                        class="sidebar-toggle"
+                        id="sidebarToggle"
+                        aria-label="Toggle sidebar"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="M3 12h18M3 6h18M3 18h18" />
                         </svg>
-                    </div>
-                    <span class="logo-text">FileAgent</span>
-                </div>
-                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-                </button>
-            </div>
-
-            <nav class="sidebar-nav">
-                <button class="nav-item active" data-page="chat" id="nav-chat">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    <span>Chat</span>
-                </button>
-                <button class="nav-item" data-page="explorer" id="nav-explorer">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                    <span>File Explorer</span>
-                </button>
-                <button class="nav-item" data-page="history" id="nav-history">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <span>Task History</span>
-                </button>
-                <button class="nav-item" data-page="settings" id="nav-settings">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    <span>Settings</span>
-                </button>
-                <button class="nav-item" data-page="permissions" id="nav-permissions">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                    <span>Permissions</span>
-                </button>
-            </nav>
-
-            <div class="sidebar-footer">
-                <div class="connection-status" id="connectionStatus">
-                    <div class="status-dot disconnected"></div>
-                    <span>LLM Disconnected</span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Chat Page -->
-            <div class="page active" id="page-chat">
-                <div class="chat-container">
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="welcome-message">
-                            <div class="welcome-icon">
-                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                            </div>
-                            <h1>Local Filesystem Agent</h1>
-                            <p>Tell me what you'd like to do with your files. I'll create a plan, show it to you, and execute only after your approval.</p>
-                            <div class="suggestions">
-                                <button class="suggestion-chip" onclick="useSuggestion('Organize my Downloads folder')">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                                    Organize my Downloads folder
-                                </button>
-                                <button class="suggestion-chip" onclick="useSuggestion('Find all PDF files in Documents')">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                                    Find all PDF files in Documents
-                                </button>
-                                <button class="suggestion-chip" onclick="useSuggestion('Delete duplicate files in Downloads')">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    Delete duplicate files in Downloads
-                                </button>
-                                <button class="suggestion-chip" onclick="useSuggestion('List all files modified this week in Desktop')">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                    List files modified this week
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chat-input-area">
-                        <form id="chatForm" class="chat-form">
-                            <div class="input-wrapper">
-                                <textarea id="chatInput" placeholder="Tell me what to do with your files..." rows="1" autofocus></textarea>
-                                <button type="submit" class="send-btn" id="sendBtn" aria-label="Send message">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- File Explorer Page -->
-            <div class="page" id="page-explorer">
-                <!-- Explorer Toolbar -->
-                <div class="explorer-toolbar">
-                    <div class="explorer-nav-buttons">
-                        <button class="explorer-btn" id="explorerBack" title="Go back" disabled>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-                        </button>
-                        <button class="explorer-btn" id="explorerForward" title="Go forward" disabled>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-                        </button>
-                        <button class="explorer-btn" id="explorerUp" title="Go up">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
-                        </button>
-                        <button class="explorer-btn" id="explorerRefresh" title="Refresh">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-                        </button>
-                    </div>
-                    <div class="explorer-breadcrumb" id="explorerBreadcrumb">
-                        <span class="breadcrumb-item" data-path="~">~</span>
-                    </div>
-                    <div class="explorer-toolbar-right">
-                        <button class="explorer-btn" id="explorerBookmark" title="Bookmark this folder">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
-                        </button>
-                        <label class="explorer-toggle" title="Show hidden files">
-                            <input type="checkbox" id="explorerShowHidden">
-                            <span>Hidden</span>
-                        </label>
-                        <select id="explorerSort" class="explorer-select">
-                            <option value="type">Sort: Type</option>
-                            <option value="name">Sort: Name</option>
-                            <option value="size">Sort: Size</option>
-                            <option value="modified">Sort: Modified</option>
-                        </select>
-                    </div>
+                    </button>
                 </div>
 
-                <!-- Explorer Search Bar -->
-                <div class="explorer-search-bar" id="explorerSearchBar">
-                    <div class="explorer-search-input-wrap">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                        <input type="text" id="explorerSearchInput" placeholder="Search files... (press / to focus)">
-                        <button class="explorer-btn" id="explorerSearchToggleFilters" title="Toggle filters">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-                            Filters
-                        </button>
-                        <button class="explorer-btn" id="explorerSearchClear" title="Clear search" style="display:none">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        </button>
-                    </div>
-                    <!-- Advanced filters (collapsed by default) -->
-                    <div class="explorer-filters" id="explorerFilters" style="display:none">
-                        <div class="filter-row">
-                            <div class="filter-group">
-                                <label>Extension</label>
-                                <input type="text" id="filterExt" placeholder=".pdf,.png">
-                            </div>
-                            <div class="filter-group">
-                                <label>Min Size</label>
-                                <input type="text" id="filterMinSize" placeholder="10KB">
-                            </div>
-                            <div class="filter-group">
-                                <label>Max Size</label>
-                                <input type="text" id="filterMaxSize" placeholder="100MB">
-                            </div>
-                            <div class="filter-group">
-                                <label>Modified After</label>
-                                <input type="text" id="filterAfter" placeholder="7d, today, 2024-01-01">
-                            </div>
-                            <div class="filter-group">
-                                <label>Modified Before</label>
-                                <input type="text" id="filterBefore" placeholder="30d">
-                            </div>
-                            <div class="filter-group">
-                                <label>Owner</label>
-                                <input type="text" id="filterOwner" placeholder="username">
-                            </div>
-                        </div>
-                        <div class="filter-row">
-                            <label class="filter-check"><input type="checkbox" id="filterFuzzy"> Fuzzy match</label>
-                            <label class="filter-check"><input type="checkbox" id="filterRegex"> Regex</label>
-                            <label class="filter-check"><input type="checkbox" id="filterHidden"> Include hidden</label>
-                            <label class="filter-check"><input type="checkbox" id="filterDirs"> Include folders</label>
-                            <label class="filter-check"><input type="checkbox" id="filterContent"> Search content</label>
-                            <button class="btn btn-small btn-primary" id="runSearch">Search</button>
-                            <button class="btn btn-small btn-secondary" id="clearFilters">Reset</button>
-                        </div>
+                <nav class="sidebar-nav">
+                    <button
+                        class="nav-item active"
+                        data-page="chat"
+                        id="nav-chat"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path
+                                d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                            />
+                        </svg>
+                        <span>Chat</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="explorer"
+                        id="nav-explorer"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <rect x="2" y="3" width="20" height="14" rx="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        <span>File Explorer</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="history"
+                        id="nav-history"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span>Task History</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="settings"
+                        id="nav-settings"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="3" />
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                            />
+                        </svg>
+                        <span>Settings</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="permissions"
+                        id="nav-permissions"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path
+                                d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
+                            />
+                        </svg>
+                        <span>Permissions</span>
+                    </button>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div class="connection-status" id="connectionStatus">
+                        <div class="status-dot disconnected"></div>
+                        <span>LLM Disconnected</span>
                     </div>
                 </div>
+            </aside>
 
-                <!-- Explorer Body -->
-                <div class="explorer-body">
-                    <!-- Left Panel: Quick Access -->
-                    <div class="explorer-sidebar">
-                        <div class="explorer-sidebar-section">
-                            <div class="explorer-sidebar-title">Quick Access</div>
-                            <div id="commonFolders" class="explorer-sidebar-list"></div>
-                        </div>
-                        <div class="explorer-sidebar-section">
-                            <div class="explorer-sidebar-title">Bookmarks
-                                <span class="sidebar-count" id="bookmarkCount">0</span>
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Chat Page -->
+                <div class="page active" id="page-chat">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="welcome-message">
+                                <div class="welcome-icon">
+                                    <svg
+                                        width="48"
+                                        height="48"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <path
+                                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                        />
+                                    </svg>
+                                </div>
+                                <h1>Local Filesystem Agent</h1>
+                                <p>
+                                    Tell me what you'd like to do with your
+                                    files. I'll create a plan, show it to you,
+                                    and execute only after your approval.
+                                </p>
+                                <div class="suggestions">
+                                    <button
+                                        class="suggestion-chip"
+                                        onclick="
+                                            useSuggestion(
+                                                'Organize my Downloads folder',
+                                            )
+                                        "
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                            />
+                                        </svg>
+                                        Organize my Downloads folder
+                                    </button>
+                                    <button
+                                        class="suggestion-chip"
+                                        onclick="
+                                            useSuggestion(
+                                                'Find all PDF files in Documents',
+                                            )
+                                        "
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <circle cx="11" cy="11" r="8" />
+                                            <path d="m21 21-4.3-4.3" />
+                                        </svg>
+                                        Find all PDF files in Documents
+                                    </button>
+                                    <button
+                                        class="suggestion-chip"
+                                        onclick="
+                                            useSuggestion(
+                                                'Delete duplicate files in Downloads',
+                                            )
+                                        "
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                                            />
+                                        </svg>
+                                        Delete duplicate files in Downloads
+                                    </button>
+                                    <button
+                                        class="suggestion-chip"
+                                        onclick="
+                                            useSuggestion(
+                                                'List all files modified this week in Desktop',
+                                            )
+                                        "
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <circle cx="12" cy="12" r="10" />
+                                            <polyline
+                                                points="12 6 12 12 16 14"
+                                            />
+                                        </svg>
+                                        List files modified this week
+                                    </button>
+                                </div>
                             </div>
-                            <div id="bookmarkList" class="explorer-sidebar-list"></div>
                         </div>
-                        <div class="explorer-sidebar-section">
-                            <div class="explorer-sidebar-title">Recent</div>
-                            <div id="recentFolders" class="explorer-sidebar-list"></div>
-                        </div>
-                    </div>
-
-                    <!-- Main File Listing -->
-                    <div class="explorer-main">
-                        <div class="explorer-status-bar">
-                            <span id="explorerStatusText">Loading...</span>
-                            <div class="explorer-view-btns">
-                                <button class="view-btn active" id="viewGrid" title="Grid view">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                                </button>
-                                <button class="view-btn" id="viewList" title="List view">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="explorer-files" id="explorerFiles">
-                            <div class="explorer-loading" id="explorerLoading">
-                                <div class="loading-spinner"></div>
-                                <span>Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Panel: File Info -->
-                    <div class="explorer-info-panel" id="explorerInfoPanel">
-                        <div class="info-panel-empty" id="infoPanelEmpty">
-                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                            <p>Select a file to see details</p>
-                        </div>
-                        <div class="info-panel-content" id="infoPanelContent" style="display:none"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- History Page -->
-            <div class="page" id="page-history">
-                <div class="page-header">
-                    <h2>Task History</h2>
-                    <p class="page-subtitle">View all past tasks, plans, and execution reports</p>
-                </div>
-                <div class="history-list" id="historyList">
-                    <div class="empty-state">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        <p>No tasks yet. Start chatting to create your first task!</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Settings Page -->
-            <div class="page" id="page-settings">
-                <div class="page-header">
-                    <h2>Settings</h2>
-                    <p class="page-subtitle">Configure your LLM connection and agent preferences</p>
-                </div>
-                <div class="settings-grid">
-                    <div class="settings-card">
-                        <div class="card-header">
-                            <h3>LLM Configuration</h3>
-                            <div class="llm-status" id="llmStatus">
-                                <div class="status-dot disconnected"></div>
-                                <span>Checking...</span>
-                            </div>
-                        </div>
-                        <div class="settings-form">
-                            <div class="form-group">
-                                <label for="llmProvider">Provider</label>
-                                <select id="llmProvider">
-                                    <option value="lmstudio">LM Studio</option>
-                                    <option value="ollama">Ollama</option>
-                                    <option value="openai_compatible">OpenAI Compatible</option>
+                        <div class="chat-input-area">
+                            <div class="permission-selector">
+                                <select
+                                    id="permissionMode"
+                                    class="permission-dropdown"
+                                >
+                                    <option value="ask_each">
+                                        Ask each time
+                                    </option>
+                                    <option value="allow_session">
+                                        Allow all (this session)
+                                    </option>
+                                    <option value="allow_safe">
+                                        Allow safe ops only
+                                    </option>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label for="llmBaseUrl">API Base URL</label>
-                                <input type="text" id="llmBaseUrl" value="http://localhost:1234/v1" placeholder="http://localhost:1234/v1">
-                            </div>
-                            <div class="form-group">
-                                <label for="llmModel">Model Name</label>
-                                <input type="text" id="llmModel" value="gemma-3-4b-it" placeholder="gemma-3-4b-it">
-                            </div>
-                            <div class="form-group">
-                                <label for="llmTemp">Temperature</label>
-                                <input type="range" id="llmTemp" min="0" max="1" step="0.1" value="0.3">
-                                <span class="range-value" id="tempValue">0.3</span>
-                            </div>
-                            <div class="form-group">
-                                <label for="llmMaxTokens">Max Tokens</label>
-                                <input type="number" id="llmMaxTokens" value="4096" min="256" max="32768">
-                            </div>
-                            <div class="form-actions">
-                                <button class="btn btn-primary" id="saveLlmSettings">Save Settings</button>
-                                <button class="btn btn-secondary" id="testLlmConnection">Test Connection</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="settings-card">
-                        <div class="card-header">
-                            <h3>Available Models</h3>
-                        </div>
-                        <div class="models-list" id="modelsList">
-                            <p class="muted">Connect to your LLM server to see available models.</p>
-                        </div>
-                    </div>
-                    <div class="settings-card">
-                        <div class="card-header">
-                            <h3>Agent Memory</h3>
-                        </div>
-                        <div class="memory-list" id="memoryList">
-                            <p class="muted">No memories stored yet. The agent learns your preferences over time.</p>
+                            <form id="chatForm" class="chat-form">
+                                <div class="input-wrapper">
+                                    <button
+                                        type="button"
+                                        class="voice-btn"
+                                        id="voiceBtn"
+                                        aria-label="Voice input"
+                                    >
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path
+                                                d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
+                                            />
+                                            <path
+                                                d="M19 10v2a7 7 0 0 1-14 0v-2"
+                                            />
+                                            <line
+                                                x1="12"
+                                                y1="19"
+                                                x2="12"
+                                                y2="23"
+                                            />
+                                            <line
+                                                x1="8"
+                                                y1="23"
+                                                x2="16"
+                                                y2="23"
+                                            />
+                                        </svg>
+                                    </button>
+                                    <textarea
+                                        id="chatInput"
+                                        placeholder="Tell me what to do with your files..."
+                                        rows="1"
+                                        autofocus
+                                    ></textarea>
+                                    <button
+                                        type="submit"
+                                        class="send-btn"
+                                        id="sendBtn"
+                                        aria-label="Send message"
+                                    >
+                                        <svg
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <line
+                                                x1="22"
+                                                y1="2"
+                                                x2="11"
+                                                y2="13"
+                                            />
+                                            <polygon
+                                                points="22 2 15 22 11 13 2 9 22 2"
+                                            />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Permissions Page -->
-            <div class="page" id="page-permissions">
-                <div class="page-header">
-                    <h2>Permissions</h2>
-                    <p class="page-subtitle">Control which directories the agent can access. Deny rules always take priority.</p>
-                </div>
-                <div class="permissions-grid">
-                    <div class="settings-card">
-                        <div class="card-header">
-                            <h3>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                Allowed Paths
-                            </h3>
+                <!-- File Explorer Page -->
+                <div class="page" id="page-explorer">
+                    <!-- Explorer Toolbar -->
+                    <div class="explorer-toolbar">
+                        <div class="explorer-nav-buttons">
+                            <button
+                                class="explorer-btn"
+                                id="explorerBack"
+                                title="Go back"
+                                disabled
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="m15 18-6-6 6-6" />
+                                </svg>
+                            </button>
+                            <button
+                                class="explorer-btn"
+                                id="explorerForward"
+                                title="Go forward"
+                                disabled
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="m9 18 6-6-6-6" />
+                                </svg>
+                            </button>
+                            <button
+                                class="explorer-btn"
+                                id="explorerUp"
+                                title="Go up"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="m18 15-6-6-6 6" />
+                                </svg>
+                            </button>
+                            <button
+                                class="explorer-btn"
+                                id="explorerRefresh"
+                                title="Refresh"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                                    />
+                                    <path d="M3 3v5h5" />
+                                    <path
+                                        d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
+                                    />
+                                    <path d="M16 21h5v-5" />
+                                </svg>
+                            </button>
                         </div>
-                        <div class="path-list" id="allowedPaths"></div>
-                        <div class="add-path-form">
-                            <input type="text" id="newAllowedPath" placeholder="~/Documents/Projects">
-                            <button class="btn btn-small btn-primary" id="addAllowedPath">Add</button>
+                        <div
+                            class="explorer-breadcrumb"
+                            id="explorerBreadcrumb"
+                        >
+                            <span class="breadcrumb-item" data-path="~">~</span>
+                        </div>
+                        <div class="explorer-toolbar-right">
+                            <button
+                                class="explorer-btn"
+                                id="explorerBookmark"
+                                title="Bookmark this folder"
+                            >
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"
+                                    />
+                                </svg>
+                            </button>
+                            <label
+                                class="explorer-toggle"
+                                title="Show hidden files"
+                            >
+                                <input
+                                    type="checkbox"
+                                    id="explorerShowHidden"
+                                />
+                                <span>Hidden</span>
+                            </label>
+                            <select id="explorerSort" class="explorer-select">
+                                <option value="type">Sort: Type</option>
+                                <option value="name">Sort: Name</option>
+                                <option value="size">Sort: Size</option>
+                                <option value="modified">Sort: Modified</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="settings-card">
-                        <div class="card-header">
-                            <h3>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                                Denied Paths
-                            </h3>
-                        </div>
-                        <div class="path-list" id="deniedPaths"></div>
-                        <div class="add-path-form">
-                            <input type="text" id="newDeniedPath" placeholder="~/.ssh">
-                            <button class="btn btn-small btn-danger" id="addDeniedPath">Add</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="permissions-actions">
-                    <button class="btn btn-primary" id="savePermissions">Save Permissions</button>
-                </div>
-            </div>
-        </main>
-    </div>
 
-    <script src="app.js"></script>
-</body>
+                    <!-- Explorer Search Bar -->
+                    <div class="explorer-search-bar" id="explorerSearchBar">
+                        <div class="explorer-search-input-wrap">
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="m21 21-4.3-4.3" />
+                            </svg>
+                            <input
+                                type="text"
+                                id="explorerSearchInput"
+                                placeholder="Search files... (press / to focus)"
+                            />
+                            <button
+                                class="explorer-btn"
+                                id="explorerSearchToggleFilters"
+                                title="Toggle filters"
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <line x1="4" y1="6" x2="20" y2="6" />
+                                    <line x1="8" y1="12" x2="16" y2="12" />
+                                    <line x1="11" y1="18" x2="13" y2="18" />
+                                </svg>
+                                Filters
+                            </button>
+                            <button
+                                class="explorer-btn"
+                                id="explorerSearchClear"
+                                title="Clear search"
+                                style="display: none"
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Advanced filters (collapsed by default) -->
+                        <div
+                            class="explorer-filters"
+                            id="explorerFilters"
+                            style="display: none"
+                        >
+                            <div class="filter-row">
+                                <div class="filter-group">
+                                    <label>Extension</label>
+                                    <input
+                                        type="text"
+                                        id="filterExt"
+                                        placeholder=".pdf,.png"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Min Size</label>
+                                    <input
+                                        type="text"
+                                        id="filterMinSize"
+                                        placeholder="10KB"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Max Size</label>
+                                    <input
+                                        type="text"
+                                        id="filterMaxSize"
+                                        placeholder="100MB"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Modified After</label>
+                                    <input
+                                        type="text"
+                                        id="filterAfter"
+                                        placeholder="7d, today, 2024-01-01"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Modified Before</label>
+                                    <input
+                                        type="text"
+                                        id="filterBefore"
+                                        placeholder="30d"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Created After</label>
+                                    <input
+                                        type="text"
+                                        id="filterCreatedAfter"
+                                        placeholder="7d, today, 2024-01-01"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Created Before</label>
+                                    <input
+                                        type="text"
+                                        id="filterCreatedBefore"
+                                        placeholder="30d"
+                                    />
+                                </div>
+                                <div class="filter-group">
+                                    <label>Owner</label>
+                                    <input
+                                        type="text"
+                                        id="filterOwner"
+                                        placeholder="username"
+                                    />
+                                </div>
+                            </div>
+                            <div class="filter-row">
+                                <div class="filter-group">
+                                    <label>Search Mode</label>
+                                    <select
+                                        id="filterSearchMode"
+                                        class="explorer-select"
+                                    >
+                                        <option value="filename">
+                                            Filename & Metadata
+                                        </option>
+                                        <option value="documents">
+                                            Document Content
+                                        </option>
+                                        <option value="semantic">
+                                            Natural Language / Semantic
+                                        </option>
+                                        <option value="code">
+                                            Code Repository
+                                        </option>
+                                    </select>
+                                </div>
+                                <div
+                                    class="filter-group"
+                                    id="filterLangGroup"
+                                    style="display: none"
+                                >
+                                    <label>Language</label>
+                                    <select
+                                        id="filterLang"
+                                        class="explorer-select"
+                                    >
+                                        <option value="">All languages</option>
+                                        <option value="python">Python</option>
+                                        <option value="javascript">
+                                            JavaScript
+                                        </option>
+                                        <option value="typescript">
+                                            TypeScript
+                                        </option>
+                                        <option value="rust">Rust</option>
+                                        <option value="go">Go</option>
+                                        <option value="java">Java</option>
+                                        <option value="cpp">C/C++</option>
+                                        <option value="ruby">Ruby</option>
+                                    </select>
+                                </div>
+                                <label class="filter-check" id="filterFuzzyWrap"
+                                    ><input type="checkbox" id="filterFuzzy" />
+                                    Fuzzy match</label
+                                >
+                                <label class="filter-check" id="filterRegexWrap"
+                                    ><input type="checkbox" id="filterRegex" />
+                                    Regex</label
+                                >
+                                <label
+                                    class="filter-check"
+                                    id="filterHiddenWrap"
+                                    ><input type="checkbox" id="filterHidden" />
+                                    Include hidden</label
+                                >
+                                <label class="filter-check" id="filterDirsWrap"
+                                    ><input type="checkbox" id="filterDirs" />
+                                    Include folders</label
+                                >
+                                <label
+                                    class="filter-check"
+                                    id="filterContentWrap"
+                                    style="display: none"
+                                    ><input
+                                        type="checkbox"
+                                        id="filterContent"
+                                    />
+                                    Search content</label
+                                >
+                                <button
+                                    class="btn btn-small btn-primary"
+                                    id="runSearch"
+                                >
+                                    Search
+                                </button>
+                                <button
+                                    class="btn btn-small btn-secondary"
+                                    id="clearFilters"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explorer Body -->
+                    <div class="explorer-body">
+                        <!-- Left Panel: Quick Access -->
+                        <div class="explorer-sidebar">
+                            <div class="explorer-sidebar-section">
+                                <div class="explorer-sidebar-title">
+                                    Quick Access
+                                </div>
+                                <div
+                                    id="commonFolders"
+                                    class="explorer-sidebar-list"
+                                ></div>
+                            </div>
+                            <div class="explorer-sidebar-section">
+                                <div class="explorer-sidebar-title">
+                                    Bookmarks
+                                    <span
+                                        class="sidebar-count"
+                                        id="bookmarkCount"
+                                        >0</span
+                                    >
+                                </div>
+                                <div
+                                    id="bookmarkList"
+                                    class="explorer-sidebar-list"
+                                ></div>
+                            </div>
+                            <div class="explorer-sidebar-section">
+                                <div class="explorer-sidebar-title">Recent</div>
+                                <div
+                                    id="recentFolders"
+                                    class="explorer-sidebar-list"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <!-- Main File Listing -->
+                        <div class="explorer-main">
+                            <div class="explorer-status-bar">
+                                <span id="explorerStatusText">Loading...</span>
+                                <div class="explorer-view-btns">
+                                    <button
+                                        class="view-btn active"
+                                        id="viewGrid"
+                                        title="Grid view"
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <rect
+                                                x="3"
+                                                y="3"
+                                                width="7"
+                                                height="7"
+                                            />
+                                            <rect
+                                                x="14"
+                                                y="3"
+                                                width="7"
+                                                height="7"
+                                            />
+                                            <rect
+                                                x="14"
+                                                y="14"
+                                                width="7"
+                                                height="7"
+                                            />
+                                            <rect
+                                                x="3"
+                                                y="14"
+                                                width="7"
+                                                height="7"
+                                            />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        class="view-btn"
+                                        id="viewList"
+                                        title="List view"
+                                    >
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <line
+                                                x1="8"
+                                                y1="6"
+                                                x2="21"
+                                                y2="6"
+                                            />
+                                            <line
+                                                x1="8"
+                                                y1="12"
+                                                x2="21"
+                                                y2="12"
+                                            />
+                                            <line
+                                                x1="8"
+                                                y1="18"
+                                                x2="21"
+                                                y2="18"
+                                            />
+                                            <line
+                                                x1="3"
+                                                y1="6"
+                                                x2="3.01"
+                                                y2="6"
+                                            />
+                                            <line
+                                                x1="3"
+                                                y1="12"
+                                                x2="3.01"
+                                                y2="12"
+                                            />
+                                            <line
+                                                x1="3"
+                                                y1="18"
+                                                x2="3.01"
+                                                y2="18"
+                                            />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="explorer-files" id="explorerFiles">
+                                <div
+                                    class="explorer-loading"
+                                    id="explorerLoading"
+                                >
+                                    <div class="loading-spinner"></div>
+                                    <span>Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: File Info -->
+                        <div class="explorer-info-panel" id="explorerInfoPanel">
+                            <div class="info-panel-empty" id="infoPanelEmpty">
+                                <svg
+                                    width="36"
+                                    height="36"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                >
+                                    <path
+                                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                                    />
+                                    <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                <p>Select a file to see details</p>
+                            </div>
+                            <div
+                                class="info-panel-content"
+                                id="infoPanelContent"
+                                style="display: none"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Page -->
+                <div class="page" id="page-history">
+                    <div class="page-header">
+                        <h2>Task History</h2>
+                        <p class="page-subtitle">
+                            View all past tasks, plans, and execution reports
+                        </p>
+                    </div>
+                    <div class="history-list" id="historyList">
+                        <div class="empty-state">
+                            <svg
+                                width="48"
+                                height="48"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            <p>
+                                No tasks yet. Start chatting to create your
+                                first task!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Page -->
+                <div class="page" id="page-settings">
+                    <div class="page-header">
+                        <h2>Settings</h2>
+                        <p class="page-subtitle">
+                            Configure your LLM connection and agent preferences
+                        </p>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>LLM Configuration</h3>
+                                <div class="llm-status" id="llmStatus">
+                                    <div class="status-dot disconnected"></div>
+                                    <span>Checking...</span>
+                                </div>
+                            </div>
+                            <div class="settings-form">
+                                <div class="form-group">
+                                    <label for="llmProvider">Provider</label>
+                                    <select id="llmProvider">
+                                        <option value="lmstudio">
+                                            LM Studio
+                                        </option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="openai_compatible">
+                                            OpenAI Compatible
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="llmBaseUrl">API Base URL</label>
+                                    <input
+                                        type="text"
+                                        id="llmBaseUrl"
+                                        value="http://localhost:1234/v1"
+                                        placeholder="http://localhost:1234/v1"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="llmModel">Model Name</label>
+                                    <input
+                                        type="text"
+                                        id="llmModel"
+                                        value="gemma-3-4b-it"
+                                        placeholder="gemma-3-4b-it"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="llmTemp">Temperature</label>
+                                    <input
+                                        type="range"
+                                        id="llmTemp"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value="0.3"
+                                    />
+                                    <span class="range-value" id="tempValue"
+                                        >0.3</span
+                                    >
+                                </div>
+                                <div class="form-group">
+                                    <label for="llmMaxTokens">Max Tokens</label>
+                                    <input
+                                        type="number"
+                                        id="llmMaxTokens"
+                                        value="4096"
+                                        min="256"
+                                        max="32768"
+                                    />
+                                </div>
+                                <div class="form-actions">
+                                    <button
+                                        class="btn btn-primary"
+                                        id="saveLlmSettings"
+                                    >
+                                        Save Settings
+                                    </button>
+                                    <button
+                                        class="btn btn-secondary"
+                                        id="testLlmConnection"
+                                    >
+                                        Test Connection
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>Available Models</h3>
+                            </div>
+                            <div class="models-list" id="modelsList">
+                                <p class="muted">
+                                    Connect to your LLM server to see available
+                                    models.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>Agent Memory</h3>
+                            </div>
+                            <div class="memory-list" id="memoryList">
+                                <p class="muted">
+                                    No memories stored yet. The agent learns
+                                    your preferences over time.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permissions Page -->
+                <div class="page" id="page-permissions">
+                    <div class="page-header">
+                        <h2>Permissions</h2>
+                        <p class="page-subtitle">
+                            Control which directories the agent can access. Deny
+                            rules always take priority.
+                        </p>
+                    </div>
+                    <div class="permissions-grid">
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="#22c55e"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            d="M22 11.08V12a10 10 0 1 1-5.93-9.14"
+                                        />
+                                        <polyline
+                                            points="22 4 12 14.01 9 11.01"
+                                        />
+                                    </svg>
+                                    Allowed Paths
+                                </h3>
+                            </div>
+                            <div class="path-list" id="allowedPaths"></div>
+                            <div class="add-path-form">
+                                <input
+                                    type="text"
+                                    id="newAllowedPath"
+                                    placeholder="~/Documents/Projects"
+                                />
+                                <button
+                                    class="btn btn-small btn-primary"
+                                    id="addAllowedPath"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <div class="card-header">
+                                <h3>
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="#ef4444"
+                                        stroke-width="2"
+                                    >
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="15" y1="9" x2="9" y2="15" />
+                                        <line x1="9" y1="9" x2="15" y2="15" />
+                                    </svg>
+                                    Denied Paths
+                                </h3>
+                            </div>
+                            <div class="path-list" id="deniedPaths"></div>
+                            <div class="add-path-form">
+                                <input
+                                    type="text"
+                                    id="newDeniedPath"
+                                    placeholder="~/.ssh"
+                                />
+                                <button
+                                    class="btn btn-small btn-danger"
+                                    id="addDeniedPath"
+                                >
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="permissions-actions">
+                        <button class="btn btn-primary" id="savePermissions">
+                            Save Permissions
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script src="app.js"></script>
+    </body>
 </html>

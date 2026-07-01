@@ -10,16 +10,9 @@ llm:
 
 filesystem:
   allowed_paths:
-    - "~/Downloads"
-    - "~/Documents"
-    - "~/Desktop"
-    - "~/Pictures"
-    - "~/Videos"
-    - "~/Music"
+    - "~"
   denied_paths:
-    - "~/.ssh"
-    - "~/.gnupg"
-    - "~/.config"
+    - "~/.*"
     - "/etc"
     - "/usr"
     - "/var"

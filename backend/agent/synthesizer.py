@@ -75,7 +75,23 @@ class Synthesizer:
             # No data to synthesize (e.g., move/delete operations)
             return self._action_response(execution_report)
 
-        # Build a concise representation of the results for the LLM
+        # Build a concise representation of the results for the LLM.
+        # To prevent token-limit truncation, we slim each file object down to
+        # only the fields needed for filtering and display.
+        KEEP_FIELDS = {"name", "path", "size", "size_formatted", "extension", "modified", "is_dir"}
+
+        def slim_entry(entry):
+            """Reduce a file-info dict to only essential fields."""
+            if isinstance(entry, dict):
+                return {k: v for k, v in entry.items() if k in KEEP_FIELDS}
+            return entry
+
+        def extract_list(data):
+            """Unwrap {results: [...]} style dicts returned by advanced_search etc."""
+            if isinstance(data, dict) and "results" in data:
+                return data["results"]
+            return data
+
         steps_data = []
         for step in execution_report.get("steps", []):
             step_info = {
@@ -86,13 +102,14 @@ class Synthesizer:
 
             data = step.get("data")
             if data is not None:
-                # For large file listings, truncate to avoid token limits
-                # but keep enough for meaningful filtering
-                if isinstance(data, list) and len(data) > 150:
-                    step_info["data"] = data[:150]
-                    step_info["data_truncated"] = True
-                    step_info["total_items"] = len(data)
-                    step_info["note"] = f"Showing first 150 of {len(data)} items. Apply filters to this subset."
+                flat = extract_list(data)
+                if isinstance(flat, list):
+                    # Slim each entry and cap at 100 items to stay within token budget
+                    slim = [slim_entry(e) for e in flat[:100]]
+                    step_info["data"] = slim
+                    if len(flat) > 100:
+                        step_info["data_truncated"] = True
+                        step_info["total_items"] = len(flat)
                 else:
                     step_info["data"] = data
 
@@ -129,9 +146,12 @@ class Synthesizer:
         # fall back to raw data (the LLM might have struggled)
         if parsed["filtered_data"] is None:
             for step in execution_report.get("steps", []):
-                if step.get("data"):
-                    parsed["filtered_data"] = step["data"]
-                    parsed["total_results"] = len(step["data"]) if isinstance(step["data"], list) else 1
+                raw = step.get("data")
+                if raw:
+                    # Unwrap {results: [...]} wrappers
+                    flat = raw.get("results", raw) if isinstance(raw, dict) else raw
+                    parsed["filtered_data"] = flat
+                    parsed["total_results"] = len(flat) if isinstance(flat, list) else 1
                     break
 
         return {
@@ -169,17 +189,24 @@ class Synthesizer:
         """Generate a basic response when LLM synthesis fails."""
         all_data = []
         for step in report.get("steps", []):
-            if step.get("data"):
-                all_data.append(step["data"])
+            raw = step.get("data")
+            if raw:
+                # Unwrap {results: [...]} wrappers from tools like advanced_search
+                flat = raw.get("results", raw) if isinstance(raw, dict) else raw
+                all_data.append(flat)
+
+        first = all_data[0] if all_data else None
+        total = len(first) if isinstance(first, list) else (1 if first else 0)
 
         return {
             "success": False,
             "synthesis": {
                 "summary": f"Task completed. {report.get('completed_steps', 0)} steps executed successfully.",
-                "filtered_data": all_data[0] if len(all_data) == 1 else (all_data or None),
+                "filtered_data": first if len(all_data) == 1 else (all_data or None),
                 "filters_applied": [],
-                "total_results": len(all_data[0]) if all_data and isinstance(all_data[0], list) else 0,
+                "total_results": total,
                 "notes": "Showing raw results (LLM post-processing was unavailable).",
             },
             "usage": {},
         }
+

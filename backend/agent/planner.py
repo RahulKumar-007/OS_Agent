@@ -22,10 +22,15 @@ RULES:
 4. Each step must use exactly one tool.
 5. Order steps logically (scan before move, create dirs before moving files into them).
 6. For destructive actions (delete, move), be explicit about what will be affected.
-7. **CRITICAL: If a user mentions a file/folder by name but does NOT provide the full path, you MUST search for it first using 'semantic_search' or 'search_files' before performing any operation on it. Users rarely know exact paths - searching is mandatory for file operations.**
-   - For documents/downloads, search in ~/Downloads, ~/Documents first before searching entire home directory
-   - Use recursive: true to search subdirectories
-   - Be specific with the query - include file extension if mentioned
+7. **CRITICAL: If a user mentions a file/folder by name but does NOT provide the full path, you MUST search for it first before performing any operation on it.**
+   - To find a **FILE** by name: use `search_files` with a glob like `**/*filename*.ext` in `~/Downloads` or `~`.
+   - To find a **DIRECTORY/FOLDER** by name: use `search_files` with pattern `**/{{folder_name}}` in `~` with `include_dirs: true` — NOT `semantic_search` (which only finds files, never folders).
+   - **NEVER use `semantic_search` to locate a folder/directory** — it always returns 0 results for folder names.
+   - For documents/downloads, prefer searching in `~/Downloads` or `~/Documents` before searching the entire home directory.
+   - Use `recursive: true` to search subdirectories.
+   - Be specific with the query — include file extension if mentioned.
+
+8. **When a user wants to search INSIDE files in a named folder**: first locate the folder with `search_files` (include_dirs: true), then use `search_documents` on that folder path.
 
 Respond ONLY with valid JSON in this exact format:
 {{
@@ -63,7 +68,11 @@ NOTE: For recursive search with search_files, use '**/' prefix in pattern:
   - "**/*.pdf" searches in the directory AND all subdirectories recursively
   - "**/*keyword*.pdf" searches recursively for files containing 'keyword' in the name
 
-Use 'search_files' with glob patterns for simple filename searches. Use 'semantic_search' only when you need natural language understanding of content.
+Use 'search_files' with glob patterns for simple filename searches. Use 'semantic_search' only when you need natural language understanding of *file content*.
+
+Example - Find a directory by name, then search inside it:
+Step 0: {{"tool": "search_files", "args": {{"path": "~/Downloads", "pattern": "**/Job_Application_Resumes", "include_dirs": true}}, "result_key": "0.path"}}
+Step 1: {{"tool": "search_documents", "args": {{"path": "{{{{step_0}}}}", "query": "Rahul Kumar"}}, "depends_on": [0]}}
 
 If the search tool returns a list like `[{{"path": "/home/user/file.pdf"}}]`, use `result_key: "0.path"` on the search step to extract the first result's path. That extracted value then replaces `{{{{step_0}}}}` in the next step.
 

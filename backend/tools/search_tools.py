@@ -14,6 +14,15 @@ from typing import Dict, Optional
 from tools.base import Tool, ToolResult
 from tools.extraction_tools import extract_text_from_file, SUPPORTED_EXTENSIONS, BINARY_DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS
 
+# Directories to always skip when walking the filesystem.
+# These contain package templates and system files, not user documents.
+SKIP_DIRS = {
+    "venv", ".venv", "env", ".env",
+    "node_modules", "__pycache__", ".git",
+    "build", "dist", ".mypy_cache", ".pytest_cache",
+    "site-packages", "lib",
+}
+
 
 def _format_size(size_bytes: int) -> str:
     """Human-readable file size."""
@@ -31,8 +40,9 @@ def _parse_size(size_str: str) -> Optional[int]:
     if not size_str:
         return None
     size_str = size_str.strip().upper()
-    units = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
-    for unit, mult in units.items():
+    # Check units from largest to smallest to avoid matching "B" on "GB", "MB", etc.
+    units = [("TB", 1024**4), ("GB", 1024**3), ("MB", 1024**2), ("KB", 1024), ("B", 1)]
+    for unit, mult in units:
         if size_str.endswith(unit):
             try:
                 return int(float(size_str[:-len(unit)].strip()) * mult)
@@ -242,6 +252,8 @@ class AdvancedSearchTool(Tool):
                     # Filter hidden dirs unless include_hidden
                     if not include_hidden:
                         dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    # Always skip system/package directories
+                    dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
 
                     items = files[:]
                     if include_dirs:
@@ -473,6 +485,8 @@ class SearchDocumentsTool(Tool):
         try:
             if recursive:
                 for root, dirs, fnames in os.walk(path):
+                    # Skip system/package directories
+                    dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
                     for fname in fnames:
                         if len(files_to_search) >= max_files:
                             break
@@ -642,23 +656,26 @@ class SemanticSearchTool(Tool):
 
     async def _expand_query(self, query: str) -> list:
         """Use LLM to expand a natural language query into search keywords and patterns."""
+        # Always extract individual keywords from the raw query as a baseline.
+        # These are the most reliable for filename matching (single-word substrings).
+        raw_keywords = [w for w in re.sub(r'[^\w\s]', ' ', query).split() if len(w) > 3]
+
         if not self.llm_client:
-            # Fallback: use query as-is and extract keywords
-            keywords = [w for w in re.sub(r'[^\w\s]', ' ', query).split() if len(w) > 2]
-            return [query] + keywords[:5]
+            return [query] + raw_keywords[:5]
 
         prompt = f"""You are a search query analyzer for a filesystem agent. 
 Given a natural language query, generate effective search terms.
 
 Rules:
 - Generate 3-8 search terms/keywords
-- Include file extensions if mentioned
+- Prefer SHORT, SINGLE-WORD terms that are likely to appear in filenames
 - Include alternative phrasings
+- Include file extensions if mentioned (e.g. *.pdf)
 - Think about what the user is ACTUALLY looking for
 
 Respond with a JSON array of strings, nothing else.
 Example input: "find my tax documents from last year"
-Example output: ["tax", "tax document", "tax return", "taxes", "*.pdf", "2024 tax"]
+Example output: ["tax", "invoice", "receipt", "taxes", "*.pdf"]
 
 User query: {query}
 """
@@ -669,18 +686,30 @@ User query: {query}
 
         result = await self.llm_client.generate_json(messages, temperature=0.1)
         parsed = result.get("parsed")
-        if isinstance(parsed, list) and len(parsed) > 0:
-            return parsed
+        llm_terms = parsed if isinstance(parsed, list) and len(parsed) > 0 else []
 
-        # Fallback: extract keywords
-        keywords = [w for w in re.sub(r'[^\w\s]', ' ', query).split() if len(w) > 2]
-        return [query] + keywords[:5]
+        # Merge LLM terms with raw keywords, deduplicating
+        merged = list(llm_terms)
+        for kw in raw_keywords:
+            if kw.lower() not in {t.lower() for t in merged}:
+                merged.append(kw)
+        return merged if merged else ([query] + raw_keywords[:5])
 
     async def _search_with_terms(
         self, path: str, terms: list, extensions_str: str,
         max_files: int, max_results: int, recursive: bool
     ) -> list:
-        """Search using expanded terms across filename and document content."""
+        """Search using expanded terms across filename (pass 1) and document content (pass 2).
+
+        Pass 1 — Filename scan (fast, unlimited):
+            Walk the entire tree and score every file whose name contains
+            any of the expanded terms. No cap on files walked — filenames
+            are cheap to check.
+
+        Pass 2 — Content scan (slow, capped):
+            For files that didn't match by filename, extract text and score
+            by term frequency.  Limited to max_files to avoid timeouts.
+        """
         ALL_DOC_EXTS = SUPPORTED_EXTENSIONS | BINARY_DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
         if extensions_str:
             target_exts = set()
@@ -692,97 +721,146 @@ User query: {query}
         else:
             target_exts = ALL_DOC_EXTS
 
-        # Collect files
-        files_to_search = []
-        try:
-            if recursive:
-                for root, dirs, fnames in os.walk(path):
-                    for fname in fnames:
-                        if len(files_to_search) >= max_files:
-                            break
-                        ext = os.path.splitext(fname)[1].lower()
-                        if ext in target_exts:
-                            files_to_search.append(os.path.join(root, fname))
-                    if len(files_to_search) >= max_files:
-                        break
-            else:
-                for fname in os.listdir(path):
-                    if len(files_to_search) >= max_files:
-                        break
-                    full = os.path.join(path, fname)
-                    if os.path.isfile(full):
-                        ext = os.path.splitext(fname)[1].lower()
-                        if ext in target_exts:
-                            files_to_search.append(full)
-        except PermissionError:
-            return []
-
-        # Build term patterns for matching (both filename and content)
+        # Build term patterns once
         term_patterns = []
         for term in terms:
             term_lower = term.lower()
             is_glob = "*" in term or "?" in term
             term_patterns.append({"original": term, "lower": term_lower, "is_glob": is_glob})
 
-        scored_results = []
+        # ── Pass 1: Fast filename scan (unlimited walk) ──────────────────────
+        filename_hits: list = []
+        filename_hit_paths: set = set()
+        no_filename_hit: list = []      # candidates for content scan
 
-        for fp in files_to_search:
-            if len(scored_results) >= max_results * 2:
-                break
-
-            name = os.path.basename(fp)
-            name_lower = name.lower()
-            st = os.stat(fp)
-            entry = {
-                "path": fp,
-                "name": name,
-                "extension": os.path.splitext(fp)[1].lower(),
-                "size": st.st_size,
-                "size_formatted": _format_size(st.st_size),
-                "score": 0,
-                "match_type": "",
-            }
-
-            # Score by filename matches (weighted higher)
-            for tp in term_patterns:
-                if tp["is_glob"]:
-                    if fnmatch.fnmatch(name_lower, tp["lower"]):
-                        entry["score"] += 10
-                        entry["match_type"] = "filename_glob"
-                elif tp["lower"] in name_lower:
-                    entry["score"] += 8
-                    entry["match_type"] = "filename"
-                # Partial word match
-                if any(tp["lower"] in word for word in name_lower.split(".")):
-                    entry["score"] += 3
-
-            if entry["score"] > 0:
-                scored_results.append(entry)
-                continue
-
-            # Content search for documents (lower weight)
-            ext = os.path.splitext(fp)[1].lower()
-            if ext in BINARY_DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS or ext in SUPPORTED_EXTENSIONS:
-                try:
-                    extraction = extract_text_from_file(fp, max_pages=5)
-                    text = extraction.get("text", "")[:5000]
-                    text_lower = text.lower()
-                    content_score = 0
+        try:
+            if recursive:
+                for root, dirs, fnames in os.walk(path):
+                    dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+                    for fname in fnames:
+                        ext = os.path.splitext(fname)[1].lower()
+                        if ext not in target_exts:
+                            continue
+                        fp = os.path.join(root, fname)
+                        name_lower = fname.lower()
+                        score = 0
+                        for tp in term_patterns:
+                            if tp["is_glob"]:
+                                if fnmatch.fnmatch(name_lower, tp["lower"]):
+                                    score += 10
+                            elif tp["lower"] in name_lower:
+                                # Full term match (could be a phrase like "volunteer activities")
+                                score += 8
+                            else:
+                                # Also try individual words within a multi-word term
+                                words = [w for w in tp["lower"].split() if len(w) > 3]
+                                for word in words:
+                                    if word in name_lower:
+                                        score += 4
+                                        break
+                        if score > 0:
+                            try:
+                                st = os.stat(fp)
+                                filename_hits.append({
+                                    "path": fp,
+                                    "name": fname,
+                                    "extension": ext,
+                                    "size": st.st_size,
+                                    "size_formatted": _format_size(st.st_size),
+                                    "score": score,
+                                    "match_type": "filename",
+                                })
+                                filename_hit_paths.add(fp)
+                            except OSError:
+                                pass
+                        else:
+                            # Queue for content scan (capped later)
+                            no_filename_hit.append(fp)
+            else:
+                for fname in os.listdir(path):
+                    fp = os.path.join(path, fname)
+                    if not os.path.isfile(fp):
+                        continue
+                    ext = os.path.splitext(fname)[1].lower()
+                    if ext not in target_exts:
+                        continue
+                    name_lower = fname.lower()
+                    score = 0
                     for tp in term_patterns:
                         if tp["is_glob"]:
-                            continue
-                        count = text_lower.count(tp["lower"])
-                        if count > 0:
-                            content_score += min(count, 5) * 2
-                    if content_score > 0:
-                        entry["score"] = content_score
-                        entry["match_type"] = "content"
-                        scored_results.append(entry)
-                except Exception:
-                    pass
+                            if fnmatch.fnmatch(name_lower, tp["lower"]):
+                                score += 10
+                        elif tp["lower"] in name_lower:
+                            score += 8
+                        else:
+                            # Also try individual words within a multi-word term
+                            words = [w for w in tp["lower"].split() if len(w) > 3]
+                            for word in words:
+                                if word in name_lower:
+                                    score += 4
+                                    break
+                    if score > 0:
+                        try:
+                            st = os.stat(fp)
+                            filename_hits.append({
+                                "path": fp,
+                                "name": fname,
+                                "extension": ext,
+                                "size": st.st_size,
+                                "size_formatted": _format_size(st.st_size),
+                                "score": score,
+                                "match_type": "filename",
+                            })
+                            filename_hit_paths.add(fp)
+                        except OSError:
+                            pass
+                    else:
+                        no_filename_hit.append(fp)
+        except PermissionError:
+            pass
 
-        scored_results.sort(key=lambda r: r["score"], reverse=True)
-        return scored_results[:max_results]
+        # ── Pass 2: Content scan for files not matched by filename ───────────
+        content_hits: list = []
+        candidates_for_content = no_filename_hit[:max_files]
+
+        for fp in candidates_for_content:
+            if len(content_hits) >= max_results:
+                break
+            ext = os.path.splitext(fp)[1].lower()
+            if ext not in (BINARY_DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS | SUPPORTED_EXTENSIONS):
+                continue
+            try:
+                extraction = extract_text_from_file(fp, max_pages=5)
+                text = extraction.get("text", "")[:5000]
+                text_lower = text.lower()
+                content_score = 0
+                for tp in term_patterns:
+                    if tp["is_glob"]:
+                        continue
+                    count = text_lower.count(tp["lower"])
+                    if count > 0:
+                        content_score += min(count, 5) * 2
+                if content_score > 0:
+                    try:
+                        st = os.stat(fp)
+                        content_hits.append({
+                            "path": fp,
+                            "name": os.path.basename(fp),
+                            "extension": ext,
+                            "size": st.st_size,
+                            "size_formatted": _format_size(st.st_size),
+                            "score": content_score,
+                            "match_type": "content",
+                        })
+                    except OSError:
+                        pass
+            except Exception:
+                pass
+
+        # Merge: filename hits first (higher confidence), then content hits
+        all_hits = filename_hits + content_hits
+        all_hits.sort(key=lambda r: r["score"], reverse=True)
+        return all_hits[:max_results]
 
     async def _rank_results(self, query: str, results: list, max_results: int) -> list:
         """Use LLM to rank/filter results by relevance to the natural language query."""

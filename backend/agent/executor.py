@@ -115,6 +115,37 @@ class Executor:
                                         )
                                         args[key] = value
 
+                # Guard: if any placeholder is still unresolved, fail this step early
+                # rather than passing a literal "{{step_N}}" string to a tool.
+                import re as _re
+                unresolved = [
+                    v for v in args.values()
+                    if isinstance(v, str) and _re.search(r'\{\{?step_\d+\}?\}', v)
+                ]
+                if unresolved:
+                    dep_indices = step.get("depends_on", [])
+                    dep_str = ", ".join(f"step {d}" for d in dep_indices)
+                    error_msg = (
+                        f"Cannot execute: {dep_str} returned no results — "
+                        f"placeholder could not be resolved. "
+                        f"The prerequisite search may need a broader path or different query."
+                    )
+                    await db.execute(
+                        "UPDATE executions SET status='error', error=?, completed_at=? WHERE id=?",
+                        (error_msg, datetime.now().isoformat(), step_id),
+                    )
+                    await db.commit()
+                    errors.append({"step": i, "error": error_msg})
+                    results.append(
+                        {
+                            "step_index": i,
+                            "tool": tool_name,
+                            "status": "error",
+                            "error": error_msg,
+                        }
+                    )
+                    continue
+
                 # Record step start
                 await db.execute(
                     """INSERT INTO executions

@@ -389,7 +389,29 @@ function toggleRawResults(id) {
   }
 }
 
+async function openFile(path) {
+  try {
+    const response = await fetch(`${API_BASE}/api/open?path=${encodeURIComponent(path)}`, {
+      method: "POST",
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      alert(`Error opening file: ${result.detail || result.message}`);
+    } else {
+      console.log(`Opened: ${path}`);
+    }
+  } catch (error) {
+    console.error("Error opening file:", error);
+    alert("Failed to open file.");
+  }
+}
+
 function renderStepData(tool, data) {
+  // Unwrap {results: [...]} wrappers returned by advanced_search, search_files, etc.
+  if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.results)) {
+    data = data.results;
+  }
+
   // File listing (list_directory, search_files)
   if (Array.isArray(data) && data.length > 0 && data[0].path) {
     const maxShow = 50;
@@ -402,7 +424,8 @@ function renderStepData(tool, data) {
         const modified = f.modified
           ? new Date(f.modified).toLocaleDateString()
           : "—";
-        return `<tr><td>${icon} ${name}</td><td>${size}</td><td>${modified}</td></tr>`;
+        const escapedPath = (f.path || "").replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return `<tr onclick="openFile('${escapedPath}')" style="cursor: pointer;" title="Click to open ${name}"><td>${icon} ${name}</td><td>${size}</td><td>${modified}</td></tr>`;
       })
       .join("");
 
@@ -1105,7 +1128,12 @@ const Explorer = (() => {
       .forEach((e) => e.classList.remove("selected"));
     el_.classList.add("selected");
     selectedEntry = entry;
-    showInfoPanel(entry);
+    if (isSearchMode) {
+      // In search mode, single-click opens the file or navigates to directory
+      onEntryDblClick(entry);
+    } else {
+      showInfoPanel(entry);
+    }
   }
 
   function onEntryDblClick(entry) {

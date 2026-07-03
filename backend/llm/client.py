@@ -135,9 +135,11 @@ class LLMClient:
                 parsed = json.loads(content)
                 result["parsed"] = parsed
             except json.JSONDecodeError:
-                # Try to find JSON in the response
+                # Try to find JSON in the response — match both objects {...} and arrays [...]
                 import re
-                json_match = re.search(r'\{[\s\S]*\}', content)
+                # Strip markdown code fences first
+                clean = re.sub(r'```(?:json)?\s*', '', content).strip()
+                json_match = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', clean)
                 if json_match:
                     try:
                         parsed = json.loads(json_match.group())

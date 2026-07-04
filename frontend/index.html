@@ -15,6 +15,7 @@
             href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
             rel="stylesheet"
         />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
         <link rel="stylesheet" href="styles.css" />
     </head>
     <body>
@@ -113,8 +114,8 @@
                     </button>
                     <button
                         class="nav-item"
-                        data-page="history"
-                        id="nav-history"
+                        data-page="system"
+                        id="nav-system"
                     >
                         <svg
                             width="18"
@@ -126,6 +127,72 @@
                             stroke-linecap="round"
                             stroke-linejoin="round"
                         >
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                        </svg>
+                        <span>System Monitor</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="terminal"
+                        id="nav-terminal"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <polyline points="4 17 10 11 4 5" />
+                            <line x1="12" y1="19" x2="20" y2="19" />
+                        </svg>
+                        <span>Terminal</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="webintel"
+                        id="nav-webintel"
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="11" cy="11" r="7" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            <line x1="11" y1="4" x2="11" y2="18" />
+                            <path d="M4 11h14" />
+                        </svg>
+                        <span>Web Intel</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="integrations"
+                        id="nav-integrations"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                        <span>Integrations</span>
+                    </button>
+                    <button
+                        class="nav-item"
+                        data-page="history"
+                        id="nav-history"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="10" />
                             <polyline points="12 6 12 12 16 14" />
                         </svg>
@@ -136,20 +203,9 @@
                         data-page="settings"
                         id="nav-settings"
                     >
-                        <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="3" />
-                            <path
-                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-                            />
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
                         </svg>
                         <span>Settings</span>
                     </button>
@@ -158,27 +214,42 @@
                         data-page="permissions"
                         id="nav-permissions"
                     >
-                        <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        >
-                            <path
-                                d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"
-                            />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         </svg>
                         <span>Permissions</span>
                     </button>
                 </nav>
 
+                <!-- Compact sidebar vitals -->
                 <div class="sidebar-system">
-                    <div class="sidebar-system-title">System Telemetry</div>
-                    <div class="telemetry-stat">
+                    <div class="sidebar-system-title">System Vitals</div>
+
+                    <div class="sb-vital">
+                        <div class="sb-vital-header">
+                            <span class="sb-vital-label">CPU</span>
+                            <span class="sb-vital-value" id="gaugeCpuValue">--%</span>
+                        </div>
+                        <div class="sb-bar-bg"><div class="sb-bar-fill" id="gaugeCpuBar" style="width:0%"></div></div>
+                    </div>
+
+                    <div class="sb-vital">
+                        <div class="sb-vital-header">
+                            <span class="sb-vital-label">RAM</span>
+                            <span class="sb-vital-value" id="gaugeRamValue">--%</span>
+                        </div>
+                        <div class="sb-bar-bg"><div class="sb-bar-fill" id="gaugeRamBar" style="width:0%"></div></div>
+                    </div>
+
+                    <div class="sb-vital">
+                        <div class="sb-vital-header">
+                            <span class="sb-vital-label">DISK</span>
+                            <span class="sb-vital-value" id="gaugeDiskValue">--%</span>
+                        </div>
+                        <div class="sb-bar-bg"><div class="sb-bar-fill" id="gaugeDiskBar" style="width:0%"></div></div>
+                    </div>
+
+                    <div class="telemetry-stat" style="margin-top:10px">
                         <span class="telemetry-label">Tools Online</span>
                         <span class="telemetry-value" id="sidebarToolCount">--</span>
                     </div>
@@ -206,6 +277,49 @@
 
             <!-- Main Content -->
             <main class="main-content">
+
+                <!-- ══ TOP VITALS TRAY ══ -->
+                <div class="vitals-tray" id="vitalsTray">
+                    <div class="vt-item">
+                        <span class="vt-icon">⚡</span>
+                        <span class="vt-label">CPU</span>
+                        <div class="vt-bar-bg"><div class="vt-bar-fill" id="vtCpuBar" style="width:0%"></div></div>
+                        <span class="vt-value" id="vtCpuVal">--%</span>
+                    </div>
+                    <div class="vt-sep"></div>
+                    <div class="vt-item">
+                        <span class="vt-icon">🧠</span>
+                        <span class="vt-label">RAM</span>
+                        <div class="vt-bar-bg"><div class="vt-bar-fill" id="vtRamBar" style="width:0%"></div></div>
+                        <span class="vt-value" id="vtRamVal">--%</span>
+                    </div>
+                    <div class="vt-sep"></div>
+                    <div class="vt-item">
+                        <span class="vt-icon">💾</span>
+                        <span class="vt-label">DISK</span>
+                        <div class="vt-bar-bg"><div class="vt-bar-fill" id="vtDiskBar" style="width:0%"></div></div>
+                        <span class="vt-value" id="vtDiskVal">--%</span>
+                    </div>
+                    <div class="vt-sep"></div>
+                    <div class="vt-item">
+                        <span class="vt-icon">🌐</span>
+                        <span class="vt-label">NET ↓</span>
+                        <span class="vt-value" id="vtNetVal">-- KB/s</span>
+                    </div>
+                    <div class="vt-sep"></div>
+                    <div class="vt-item">
+                        <span class="vt-icon">⏱</span>
+                        <span class="vt-label">UPTIME</span>
+                        <span class="vt-value" id="vtUptime">--</span>
+                    </div>
+                    <div class="vt-sep"></div>
+                    <div class="vt-item" id="vtLlmItem">
+                        <span class="vt-icon">🤖</span>
+                        <span class="vt-label">LLM</span>
+                        <span class="vt-value" id="vtLlmStatus">Checking…</span>
+                    </div>
+                </div>
+
                 <!-- Chat Page -->
                 <div class="page active" id="page-chat">
                     <div class="chat-container">
@@ -942,6 +1056,302 @@
                     </div>
                 </div>
 
+                <!-- System Monitor Page -->
+                <div class="page" id="page-system">
+                    <div class="page-header">
+                        <h2>System Monitor</h2>
+                        <p class="page-subtitle">
+                            Live telemetry from the host machine — CPU, memory, storage, network, and process activity
+                        </p>
+                    </div>
+                    <div class="system-content">
+                        <div class="system-grid">
+                            <div class="settings-card metric-card">
+                                <div class="card-header">
+                                    <h3>Processor</h3>
+                                    <span class="metric-badge" id="cpuBadge">--%</span>
+                                </div>
+                                <div class="core-bars" id="cpuCores"></div>
+                                <div class="metric-footnote" id="cpuFootnote">-- cores · -- MHz · load --</div>
+                            </div>
+                            <div class="settings-card metric-card">
+                                <div class="card-header">
+                                    <h3>Memory</h3>
+                                    <span class="metric-badge" id="ramBadge">--%</span>
+                                </div>
+                                <div class="meter"><div class="meter-fill" id="ramMeterFill"></div></div>
+                                <div class="metric-footnote" id="ramFootnote">-- / -- used</div>
+                                <div class="meter meter-swap"><div class="meter-fill" id="swapMeterFill"></div></div>
+                                <div class="metric-footnote" id="swapFootnote">Swap: -- / --</div>
+                            </div>
+                            <div class="settings-card metric-card">
+                                <div class="card-header">
+                                    <h3>Storage</h3>
+                                </div>
+                                <div class="disk-list" id="diskList"></div>
+                            </div>
+                            <div class="settings-card metric-card">
+                                <div class="card-header">
+                                    <h3>Network</h3>
+                                </div>
+                                <canvas class="network-sparkline" id="networkSparkline" width="280" height="70"></canvas>
+                                <div class="metric-footnote" id="networkFootnote">↓ -- · ↑ --</div>
+                            </div>
+                            <div class="settings-card metric-card" id="gpuCard" style="display:none;">
+                                <div class="card-header">
+                                    <h3>GPU</h3>
+                                    <span class="metric-badge" id="gpuBadge">--%</span>
+                                </div>
+                                <div class="metric-footnote" id="gpuFootnote">--</div>
+                            </div>
+                            <div class="settings-card metric-card">
+                                <div class="card-header">
+                                    <h3>Uptime</h3>
+                                </div>
+                                <div class="uptime-display" id="uptimeDisplay">--</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-card process-panel">
+                            <div class="card-header">
+                                <h3>Active Processes</h3>
+                                <span class="metric-badge" id="processCountBadge">-- procs</span>
+                            </div>
+                            <div class="process-table-wrap">
+                                <table class="process-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Process</th>
+                                            <th>PID</th>
+                                            <th>User</th>
+                                            <th>CPU</th>
+                                            <th>MEM</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="processTableBody">
+                                        <tr><td colspan="6" class="muted">Loading process telemetry...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Search Index Status (populated dynamically by SystemMonitor JS) -->
+                        <div class="settings-card metric-card" id="indexStatusCard" style="display:none;">
+                            <div class="card-header">
+                                <h3>Search Index</h3>
+                                <span class="metric-badge">Loading…</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Integrations Page -->
+                <div class="page" id="page-integrations">
+                    <div class="page-header">
+                        <h2>Integrations</h2>
+                        <p class="page-subtitle">Connect external systems and services to the AEGIS agent — all processed locally</p>
+                    </div>
+                    <div class="integrations-content">
+
+                        <div class="int-section-title">Phase 2 — Essential</div>
+                        <div class="int-grid">
+
+                            <div class="int-card">
+                                <div class="int-card-icon">🗄️</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Database Query</div>
+                                    <div class="int-card-desc">Natural language to SQL. Connect SQLite, PostgreSQL, or MySQL and query with plain English.</div>
+                                    <div class="int-card-tags"><span class="int-tag">SQLite</span><span class="int-tag">PostgreSQL</span><span class="int-tag">MySQL</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">📧</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Email Integration</div>
+                                    <div class="int-card-desc">IMAP/SMTP access for reading, searching, and composing emails. Full-text index of inbox.</div>
+                                    <div class="int-card-tags"><span class="int-tag">IMAP</span><span class="int-tag">SMTP</span><span class="int-tag">Full-text search</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">⏰</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Scheduling & Automation</div>
+                                    <div class="int-card-desc">Cron-like task scheduler with a visual UI. Trigger workflows on schedule, file change, or event.</div>
+                                    <div class="int-card-tags"><span class="int-tag">Cron</span><span class="int-tag">Workflows</span><span class="int-tag">Triggers</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">🎙️</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Voice & Audio</div>
+                                    <div class="int-card-desc">Whisper STT for transcription, pyttsx3 / espeak TTS for agent responses. Fully offline.</div>
+                                    <div class="int-card-tags"><span class="int-tag">Whisper</span><span class="int-tag">TTS</span><span class="int-tag">Offline</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                        </div>
+
+                        <div class="int-section-title" style="margin-top:28px">Phase 3 — Advanced</div>
+                        <div class="int-grid">
+
+                            <div class="int-card">
+                                <div class="int-card-icon">🐳</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Docker / Containers</div>
+                                    <div class="int-card-desc">List, start, stop, and exec into containers. Pull images, view logs, monitor resource usage.</div>
+                                    <div class="int-card-tags"><span class="int-tag">Docker</span><span class="int-tag">Podman</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">📦</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Package Managers</div>
+                                    <div class="int-card-desc">NPM, pip, apt, brew — list, search, install, and audit packages from a unified interface.</div>
+                                    <div class="int-card-tags"><span class="int-tag">pip</span><span class="int-tag">npm</span><span class="int-tag">apt</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">🔌</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">API Request Builder</div>
+                                    <div class="int-card-desc">Make HTTP requests, manage API keys, save templates, visualize JSON responses inline.</div>
+                                    <div class="int-card-tags"><span class="int-tag">REST</span><span class="int-tag">GraphQL</span><span class="int-tag">WebSocket</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                            <div class="int-card">
+                                <div class="int-card-icon">🧠</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Local Embeddings</div>
+                                    <div class="int-card-desc">sentence-transformers for semantic search without external APIs. Index documents locally.</div>
+                                    <div class="int-card-tags"><span class="int-tag">sentence-transformers</span><span class="int-tag">FAISS</span></div>
+                                </div>
+                                <span class="int-badge int-badge-planned">Planned</span>
+                            </div>
+
+                        </div>
+
+                        <div class="int-section-title" style="margin-top:28px">Active Integrations</div>
+                        <div class="int-grid">
+
+                            <div class="int-card int-card-active">
+                                <div class="int-card-icon">🌐</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Web Intelligence</div>
+                                    <div class="int-card-desc">DuckDuckGo search scraper + BeautifulSoup page fetcher. No API key required.</div>
+                                    <div class="int-card-tags"><span class="int-tag">DuckDuckGo</span><span class="int-tag">BeautifulSoup</span></div>
+                                </div>
+                                <span class="int-badge int-badge-active">Active</span>
+                            </div>
+
+                            <div class="int-card int-card-active">
+                                <div class="int-card-icon">🖥️</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">System Telemetry</div>
+                                    <div class="int-card-desc">psutil-powered real-time CPU, RAM, disk, network, and GPU monitoring with process tree.</div>
+                                    <div class="int-card-tags"><span class="int-tag">psutil</span><span class="int-tag">nvidia-smi</span></div>
+                                </div>
+                                <span class="int-badge int-badge-active">Active</span>
+                            </div>
+
+                            <div class="int-card int-card-active">
+                                <div class="int-card-icon">⚡</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Interactive Shell (PTY)</div>
+                                    <div class="int-card-desc">Full pseudo-terminal session over WebSocket. Bash/zsh, job control, colors — real PTY.</div>
+                                    <div class="int-card-tags"><span class="int-tag">PTY</span><span class="int-tag">xterm.js</span><span class="int-tag">WebSocket</span></div>
+                                </div>
+                                <span class="int-badge int-badge-active">Active</span>
+                            </div>
+
+                            <div class="int-card int-card-active">
+                                <div class="int-card-icon">🔍</div>
+                                <div class="int-card-body">
+                                    <div class="int-card-title">Search Index</div>
+                                    <div class="int-card-desc">SQLite FTS5 background indexing daemon with inotify live-watch. Instant filename lookup.</div>
+                                    <div class="int-card-tags"><span class="int-tag">FTS5</span><span class="int-tag">inotify</span><span class="int-tag">watchdog</span></div>
+                                </div>
+                                <span class="int-badge int-badge-active">Active</span>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terminal Page -->
+                <div class="page" id="page-terminal">
+                    <div class="page-header">
+                        <h2>Interactive Terminal</h2>
+                        <p class="page-subtitle">
+                            Direct shell access, integrated into the environment — a real PTY session, not a command box
+                        </p>
+                    </div>
+                    <div class="terminal-content">
+                        <div class="terminal-frame">
+                            <div class="terminal-frame-header">
+                                <span class="terminal-dot red"></span>
+                                <span class="terminal-dot yellow"></span>
+                                <span class="terminal-dot green"></span>
+                                <span class="terminal-frame-title" id="terminalStatus">CONNECTING...</span>
+                            </div>
+                            <div id="xtermContainer" class="xterm-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Web Intelligence Page -->
+                <div class="page" id="page-webintel">
+                    <div class="page-header">
+                        <h2>Web Intelligence</h2>
+                        <p class="page-subtitle">
+                            Search and retrieve information from the open web — requires an active internet connection
+                        </p>
+                    </div>
+                    <div class="webintel-content">
+                        <div class="webintel-search-bar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="7" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input type="text" id="webSearchInput" placeholder="Query the open web..." />
+                            <button class="btn btn-primary" id="webSearchBtn">Scan</button>
+                        </div>
+                        <div class="webintel-results" id="webSearchResults">
+                            <div class="empty-state">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <circle cx="11" cy="11" r="7" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                                <p>Awaiting query. Results will emerge from the network.</p>
+                            </div>
+                        </div>
+
+                        <div class="settings-card webintel-scrape-card">
+                            <div class="card-header">
+                                <h3>Direct Page Fetch</h3>
+                            </div>
+                            <div class="webintel-scrape-form">
+                                <input type="text" id="webScrapeInput" placeholder="https://..." />
+                                <button class="btn btn-secondary" id="webScrapeBtn">Fetch</button>
+                            </div>
+                            <div class="webintel-scrape-output" id="webScrapeOutput"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- History Page -->
                 <div class="page" id="page-history">
                     <div class="page-header">
@@ -1173,6 +1583,8 @@
             </main>
         </div>
 
+        <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
         <script src="app.js"></script>
     </body>
 </html>

@@ -2,6 +2,7 @@
 Local Filesystem Agent — Main Application Entry Point.
 """
 
+import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -27,10 +28,15 @@ from tools.file_tools import ALL_FILE_TOOLS
 from tools.fileops_tools import ALL_FILEOPS_TOOLS
 from tools.git_tools import ALL_GIT_TOOLS
 from tools.image_understanding_tools import ALL_IMAGE_UNDERSTANDING_TOOLS
+from tools.index_tools import ALL_INDEX_TOOLS
 from tools.navigation_tools import ALL_NAVIGATION_TOOLS
 from tools.search_tools import ALL_SEARCH_TOOLS
 from tools.security_tools import ALL_SECURITY_TOOLS
+from tools.system_tools import ALL_SYSTEM_TOOLS
 from tools.terminal_tools import ALL_TERMINAL_TOOLS
+from tools.web_tools import ALL_WEB_TOOLS
+from indexing.index_store import IndexStore
+from indexing.indexer import IndexerService
 
 # ─── Configuration ──────────────────────────────────────
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -67,6 +73,9 @@ async def lifespan(app: FastAPI):
         + ALL_GIT_TOOLS
         + ALL_TERMINAL_TOOLS
         + ALL_EXIF_TOOLS
+        + ALL_SYSTEM_TOOLS
+        + ALL_INDEX_TOOLS
+        + ALL_WEB_TOOLS
     )
     for tool in all_tools:
         registry.register(tool)
@@ -112,6 +121,34 @@ async def lifespan(app: FastAPI):
     memory_store = MemoryStore()
     print("✅ Memory store ready")
 
+    # ── Filesystem search index ──
+    index_store = IndexStore()
+    await index_store.init()
+    indexer = IndexerService(index_store, policy_engine=policy_engine)
+    indexer.default_roots = policy_engine.allowed_paths or [os.path.expanduser("~")]
+
+    indexed_search_tool = registry.get("indexed_search")
+    if indexed_search_tool:
+        indexed_search_tool.store = index_store
+    rebuild_index_tool = registry.get("rebuild_index")
+    if rebuild_index_tool:
+        rebuild_index_tool.indexer = indexer
+    index_status_tool = registry.get("index_status")
+    if index_status_tool:
+        index_status_tool.indexer = indexer
+        index_status_tool.store = index_store
+
+    # Kick off the initial index build in the background (non-blocking)
+    asyncio.create_task(indexer.build_index(indexer.default_roots))
+    print(f"✅ Filesystem index building in background ({len(indexer.default_roots)} root(s))")
+
+    # Enable real-time incremental updates if 'watchdog' is installed
+    loop = asyncio.get_event_loop()
+    if indexer.start_watching(indexer.default_roots, loop):
+        print("✅ Live filesystem watch enabled")
+    else:
+        print("⚠️  Live filesystem watch disabled (install 'watchdog' to enable)")
+
     # Wire up dependencies
     init_dependencies(llm_client, policy_engine, memory_store)
     print("✅ All systems operational\n")
@@ -119,6 +156,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # ── Shutdown ──
+    indexer.stop_watching()
     print("👋 Shutting down...")
 
 

@@ -224,7 +224,7 @@ function initGlobe() {
   draw();
 }
 
-// ─── System Telemetry (sidebar) ───────────
+// ─── Page Navigation + Module Lifecycle ───
 document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => {
     const page = btn.dataset.page;
@@ -239,6 +239,13 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     if (page === "history") loadHistory();
     if (page === "settings") loadSettings();
     if (page === "permissions") loadPermissions();
+    // Module lifecycle — triggered after modules are defined below
+    if (typeof SystemMonitor !== "undefined") {
+      if (page === "system") SystemMonitor.start();
+      else SystemMonitor.stop();
+    }
+    if (page === "terminal" && typeof TerminalModule !== "undefined") TerminalModule.init();
+    if (page === "webintel" && typeof WebIntel !== "undefined") WebIntel.init();
   });
 });
 
@@ -1190,6 +1197,573 @@ loadSystemStatus();
 setInterval(loadSystemStatus, 30000);
 initBackgroundFX();
 initGlobe();
+
+
+
+// ══════════════════════════════════════════════════
+// SYSTEM MONITOR MODULE
+// ══════════════════════════════════════════════════
+
+const SystemMonitor = (() => {
+  let pollTimer = null;
+  let networkHistory = []; // [{sent, recv, ts}]
+  const MAX_NET_HISTORY = 40;
+  let prevNetBytes = null;
+
+  // ── DOM refs ──────────────────────────────────
+  const el = (id) => document.getElementById(id);
+
+  // ── Start / Stop ──────────────────────────────
+  function start() {
+    if (pollTimer) return; // already running
+    fetchMetrics();
+    fetchProcesses();
+    fetchIndexStatus();
+    pollTimer = setInterval(() => {
+      fetchMetrics();
+      fetchProcesses();
+      fetchIndexStatus();
+    }, 3000);
+  }
+
+  function stop() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  // ── Metrics ───────────────────────────────────
+  async function fetchMetrics() {
+    try {
+      const res = await fetch(`${API_BASE}/api/system/metrics`);
+      if (!res.ok) return;
+      const m = await res.json();
+      updateCpu(m.cpu);
+      updateMemory(m.memory, m.swap);
+      updateDisks(m.disks);
+      updateNetwork(m.network, m.timestamp);
+      updateGpu(m.gpu);
+      updateUptime(m.uptime_seconds);
+      // Sidebar gauges
+      updateSidebarGauge("gaugeCpu", "gaugeCpuRing", "gaugeCpuValue", m.cpu.percent);
+      updateSidebarGauge("gaugeRam", "gaugeRamRing", "gaugeRamValue", m.memory.percent);
+      const diskMain = m.disks?.[0];
+      if (diskMain) updateSidebarGauge("gaugeDisk", "gaugeDiskRing", "gaugeDiskValue", diskMain.percent);
+    } catch (e) {
+      console.warn("System metrics unavailable:", e);
+    }
+  }
+
+  function updateSidebarGauge(gaugeId, ringId, valueId, percent) {
+    const ring = el(ringId);
+    const value = el(valueId);
+    if (!ring || !value) return;
+    const r = 26;
+    const circ = 2 * Math.PI * r;
+    const pct = Math.min(100, Math.max(0, percent));
+    const dashOffset = circ * (1 - pct / 100);
+    ring.style.strokeDasharray = circ;
+    ring.style.strokeDashoffset = dashOffset;
+    // color
+    const hue = 120 - (pct / 100) * 120; // green→red
+    ring.style.stroke = `hsl(${hue},90%,55%)`;
+    value.textContent = `${Math.round(pct)}%`;
+  }
+
+  function updateCpu(cpu) {
+    const badge = el("cpuBadge");
+    const cores = el("cpuCores");
+    const foot = el("cpuFootnote");
+    if (!badge) return;
+    badge.textContent = `${Math.round(cpu.percent)}%`;
+    if (cores && cpu.per_core) {
+      cores.innerHTML = cpu.per_core.map((p, i) => {
+        const pct = Math.round(p);
+        const hue = 120 - (pct / 100) * 120;
+        return `<div class="core-bar-wrap" title="Core ${i}: ${pct}%">
+          <div class="core-bar" style="height:${Math.max(4, pct)}%;background:hsl(${hue},90%,55%)"></div>
+          <span class="core-label">${i}</span>
+        </div>`;
+      }).join("");
+    }
+    if (foot) {
+      const load = cpu.load_avg?.map(v => v.toFixed(2)).join(", ") || "—";
+      foot.textContent = `${cpu.physical_cores}P / ${cpu.cores}L cores · ${cpu.freq_mhz || "—"} MHz · Load: ${load}`;
+    }
+  }
+
+  function fmtBytes(b) {
+    if (b == null) return "—";
+    const u = ["B","KB","MB","GB","TB"];
+    let i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return `${b.toFixed(1)} ${u[i]}`;
+  }
+
+  function updateMemory(mem, swap) {
+    const badge = el("ramBadge");
+    const meterFill = el("ramMeterFill");
+    const foot = el("ramFootnote");
+    const swapFill = el("swapMeterFill");
+    const swapFoot = el("swapFootnote");
+    if (badge) badge.textContent = `${Math.round(mem.percent)}%`;
+    if (meterFill) {
+      meterFill.style.width = `${mem.percent}%`;
+      const hue = 120 - (mem.percent / 100) * 120;
+      meterFill.style.background = `hsl(${hue},80%,50%)`;
+    }
+    if (foot) foot.textContent = `${fmtBytes(mem.used)} / ${fmtBytes(mem.total)} used`;
+    if (swapFill && swap) {
+      swapFill.style.width = `${swap.percent}%`;
+    }
+    if (swapFoot && swap) swapFoot.textContent = `Swap: ${fmtBytes(swap.used)} / ${fmtBytes(swap.total)}`;
+  }
+
+  function updateDisks(disks) {
+    const list = el("diskList");
+    if (!list || !disks) return;
+    list.innerHTML = disks.map(d => {
+      const hue = 120 - (d.percent / 100) * 120;
+      return `<div class="disk-item">
+        <div class="disk-label">
+          <span class="disk-mount">${escapeHtml(d.mountpoint)}</span>
+          <span class="disk-pct" style="color:hsl(${hue},80%,55%)">${Math.round(d.percent)}%</span>
+        </div>
+        <div class="disk-bar-bg"><div class="disk-bar-fill" style="width:${d.percent}%;background:hsl(${hue},80%,50%)"></div></div>
+        <div class="disk-sub">${fmtBytes(d.used)} / ${fmtBytes(d.total)} · ${escapeHtml(d.fstype || "")} · ${escapeHtml(d.device)}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function updateNetwork(net, ts) {
+    const foot = el("networkFootnote");
+    const canvas = el("networkSparkline");
+    if (!net) return;
+
+    let sentRate = 0, recvRate = 0;
+    if (prevNetBytes && ts) {
+      const dt = (ts - prevNetBytes.ts) || 1;
+      sentRate = (net.bytes_sent - prevNetBytes.sent) / dt;
+      recvRate = (net.bytes_recv - prevNetBytes.recv) / dt;
+    }
+    prevNetBytes = { sent: net.bytes_sent, recv: net.bytes_recv, ts };
+
+    networkHistory.push({ sent: sentRate, recv: recvRate });
+    if (networkHistory.length > MAX_NET_HISTORY) networkHistory.shift();
+
+    if (foot) foot.textContent = `↓ ${fmtBytes(recvRate)}/s  ·  ↑ ${fmtBytes(sentRate)}/s  ·  Total ↓ ${fmtBytes(net.bytes_recv)}`;
+
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const maxVal = Math.max(...networkHistory.map(p => Math.max(p.sent, p.recv)), 1);
+    const drawLine = (data, color) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      data.forEach((v, i) => {
+        const x = (i / (MAX_NET_HISTORY - 1)) * w;
+        const y = h - (v / maxVal) * (h - 4) - 2;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    };
+    drawLine(networkHistory.map(p => p.recv), "#4ff3ff");
+    drawLine(networkHistory.map(p => p.sent), "#a78bfa");
+  }
+
+  function updateGpu(gpu) {
+    const card = el("gpuCard");
+    const badge = el("gpuBadge");
+    const foot = el("gpuFootnote");
+    if (!gpu || gpu.length === 0) { if (card) card.style.display = "none"; return; }
+    if (card) card.style.display = "";
+    const g = gpu[0];
+    if (badge) badge.textContent = `${Math.round(g.utilization_percent)}%`;
+    if (foot) foot.textContent = `${escapeHtml(g.name)} · ${fmtBytes(g.memory_used_mb * 1024 * 1024)}/${fmtBytes(g.memory_total_mb * 1024 * 1024)} · ${g.temperature_c}°C`;
+  }
+
+  function updateUptime(seconds) {
+    const display = el("uptimeDisplay");
+    if (!display) return;
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    display.textContent = `${d}d ${h}h ${m}m`;
+  }
+
+  // ── Processes ─────────────────────────────────
+  async function fetchProcesses() {
+    try {
+      const res = await fetch(`${API_BASE}/api/system/processes?limit=30`);
+      if (!res.ok) return;
+      const data = await res.json();
+      renderProcessTable(data.processes || []);
+      const badge = el("processCountBadge");
+      if (badge) badge.textContent = `${data.count} procs`;
+    } catch (e) {}
+  }
+
+  function renderProcessTable(procs) {
+    const tbody = el("processTableBody");
+    if (!tbody) return;
+    if (!procs.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="muted">No processes</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = procs.slice(0, 30).map(p => {
+      const cpuHue = 120 - (Math.min(p.cpu, 100) / 100) * 120;
+      const memHue = 120 - (Math.min(p.memory, 100) / 100) * 120;
+      const isZombie = p.status === "zombie";
+      return `<tr class="${isZombie ? "zombie-proc" : ""}">
+        <td class="proc-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name.length > 22 ? p.name.slice(0, 22) + "…" : p.name)}${isZombie ? " 🧟" : ""}</td>
+        <td>${p.pid}</td>
+        <td class="muted">${escapeHtml(p.user || "—")}</td>
+        <td style="color:hsl(${cpuHue},80%,55%)">${p.cpu.toFixed(1)}%</td>
+        <td style="color:hsl(${memHue},80%,55%)">${p.memory.toFixed(1)}%</td>
+        <td><button class="proc-kill-btn" onclick="SystemMonitor.killProcess(${p.pid}, false)" title="Terminate">⊗</button></td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function killProcess(pid, force = false) {
+    if (!confirm(`Terminate process ${pid}?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/system/kill?pid=${pid}&force=${force}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(`Sent SIGTERM to PID ${pid}`);
+        fetchProcesses();
+      } else {
+        showToast(data.detail || "Kill failed", "error");
+      }
+    } catch (e) {
+      showToast("Cannot reach backend", "error");
+    }
+  }
+
+  // ── Search Index Status ───────────────────────
+  async function fetchIndexStatus() {
+    const card = el("indexStatusCard");
+    if (!card) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/index/status`);
+      if (!res.ok) { card.style.display = "none"; return; }
+      const d = await res.json();
+      card.style.display = "";
+      const pct = d.is_building ? Math.round((d.indexed / Math.max(d.total_to_index || 1, 1)) * 100) : 100;
+      card.innerHTML = `
+        <div class="card-header">
+          <h3>Search Index</h3>
+          <span class="metric-badge" id="indexBadge">${d.is_building ? "Building…" : "Ready"}</span>
+        </div>
+        <div class="metric-footnote">${d.total_indexed?.toLocaleString() || 0} files indexed · ${d.is_watching ? "🟢 Live watch" : "🔴 No watch"}</div>
+        ${d.is_building ? `<div class="meter" style="margin-top:8px"><div class="meter-fill" style="width:${pct}%;background:var(--accent)"></div></div>` : ""}
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-small btn-secondary" onclick="SystemMonitor.rebuildIndex()">🔄 Rebuild</button>
+          <a class="btn btn-small btn-secondary" onclick="document.querySelector('[data-page=explorer]').click();document.getElementById('explorerSearchInput').focus()">🔍 Search</a>
+        </div>
+      `;
+    } catch (e) {
+      if (card) card.style.display = "none";
+    }
+  }
+
+  async function rebuildIndex() {
+    try {
+      const res = await fetch(`${API_BASE}/api/index/rebuild`, { method: "POST" });
+      if (res.ok) showToast("Index rebuild started");
+      else showToast("Rebuild failed", "error");
+    } catch (e) { showToast("Cannot reach backend", "error"); }
+  }
+
+  return { start, stop, killProcess, rebuildIndex };
+})();
+
+
+// ══════════════════════════════════════════════════
+// INTERACTIVE TERMINAL MODULE
+// ══════════════════════════════════════════════════
+
+const TerminalModule = (() => {
+  let term = null;
+  let fitAddon = null;
+  let ws = null;
+  let initialized = false;
+
+  function init() {
+    if (initialized) {
+      // already set up — just re-fit on layout change
+      if (fitAddon) setTimeout(() => fitAddon.fit(), 100);
+      return;
+    }
+
+    const container = document.getElementById("xtermContainer");
+    if (!container) return;
+
+    // Guard: xterm must be loaded
+    if (typeof Terminal === "undefined") {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px">xterm.js not loaded. Check CDN connectivity.</div>`;
+      return;
+    }
+
+    term = new Terminal({
+      theme: {
+        background: "#050810",
+        foreground: "#e2e8f0",
+        cursor: "#4ff3ff",
+        cursorAccent: "#050810",
+        selection: "rgba(79,243,255,0.2)",
+        black: "#1e293b",
+        red: "#f87171",
+        green: "#4ade80",
+        yellow: "#facc15",
+        blue: "#60a5fa",
+        magenta: "#a78bfa",
+        cyan: "#4ff3ff",
+        white: "#e2e8f0",
+        brightBlack: "#475569",
+        brightRed: "#fca5a5",
+        brightGreen: "#86efac",
+        brightYellow: "#fde047",
+        brightBlue: "#93c5fd",
+        brightMagenta: "#c4b5fd",
+        brightCyan: "#67e8f9",
+        brightWhite: "#f8fafc",
+      },
+      fontFamily: '"JetBrains Mono", "Cascadia Code", monospace',
+      fontSize: 14,
+      lineHeight: 1.4,
+      cursorBlink: true,
+      cursorStyle: "bar",
+      scrollback: 5000,
+      allowTransparency: true,
+    });
+
+    if (typeof FitAddon !== "undefined") {
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+    }
+
+    term.open(container);
+    if (fitAddon) fitAddon.fit();
+
+    const statusEl = document.getElementById("terminalStatus");
+    if (statusEl) statusEl.textContent = "CONNECTING…";
+
+    connectWebSocket();
+    initialized = true;
+
+    // Re-fit on window resize
+    window.addEventListener("resize", () => {
+      if (fitAddon) fitAddon.fit();
+    });
+  }
+
+  function connectWebSocket() {
+    const wsUrl = `ws://${location.hostname}:8000/ws/terminal`;
+    ws = new WebSocket(wsUrl);
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      const statusEl = document.getElementById("terminalStatus");
+      if (statusEl) statusEl.textContent = "SHELL ACTIVE";
+      term.write("\r\n\x1b[1;36m╔══════════════════════════════════════╗\x1b[0m\r\n");
+      term.write("\x1b[1;36m║   AEGIS Interactive Terminal          ║\x1b[0m\r\n");
+      term.write("\x1b[1;36m╚══════════════════════════════════════╝\x1b[0m\r\n\r\n");
+      // Send initial resize
+      sendResize();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "output") {
+          term.write(msg.data);
+        } else if (msg.type === "exit") {
+          term.write("\r\n\x1b[1;33m[Shell exited]\x1b[0m\r\n");
+          const statusEl = document.getElementById("terminalStatus");
+          if (statusEl) statusEl.textContent = "SHELL EXITED";
+          initialized = false;
+        } else if (msg.type === "error") {
+          term.write(`\r\n\x1b[1;31m[Error: ${msg.message}]\x1b[0m\r\n`);
+        }
+      } catch (e) {}
+    };
+
+    ws.onclose = () => {
+      const statusEl = document.getElementById("terminalStatus");
+      if (statusEl) statusEl.textContent = "DISCONNECTED";
+      term?.write("\r\n\x1b[1;31m[Connection closed — navigate away and back to reconnect]\x1b[0m\r\n");
+      initialized = false;
+    };
+
+    ws.onerror = () => {
+      term?.write("\r\n\x1b[1;31m[WebSocket error — is the backend running?]\x1b[0m\r\n");
+    };
+
+    // Forward keyboard input
+    term.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "input", data }));
+      }
+    });
+
+    // Forward resize
+    term.onResize(({ cols, rows }) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "resize", rows, cols }));
+      }
+    });
+  }
+
+  function sendResize() {
+    if (!term || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const dims = fitAddon ? { cols: term.cols, rows: term.rows } : { cols: 80, rows: 24 };
+    ws.send(JSON.stringify({ type: "resize", ...dims }));
+  }
+
+  return { init };
+})();
+
+
+// ══════════════════════════════════════════════════
+// WEB INTEL MODULE
+// ══════════════════════════════════════════════════
+
+const WebIntel = (() => {
+  let initialized = false;
+
+  function init() {
+    if (initialized) return;
+    initialized = true;
+
+    const searchBtn = document.getElementById("webSearchBtn");
+    const searchInput = document.getElementById("webSearchInput");
+    const scrapeBtn = document.getElementById("webScrapeBtn");
+    const scrapeInput = document.getElementById("webScrapeInput");
+
+    if (searchBtn) {
+      searchBtn.addEventListener("click", () => runSearch());
+      searchInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+    }
+    if (scrapeBtn) {
+      scrapeBtn.addEventListener("click", () => runScrape());
+      scrapeInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") runScrape(); });
+    }
+  }
+
+  async function runSearch() {
+    const input = document.getElementById("webSearchInput");
+    const results = document.getElementById("webSearchResults");
+    const query = input?.value.trim();
+    if (!query || !results) return;
+
+    results.innerHTML = `<div class="webintel-loading"><div class="loading-spinner"></div><span>Scanning the web for "${escapeHtml(query)}"…</span></div>`;
+
+    const btn = document.getElementById("webSearchBtn");
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/web/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, max_results: 8 }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        results.innerHTML = `<div class="empty-state"><p>⚠️ ${escapeHtml(data.detail || "Search failed")}</p></div>`;
+        return;
+      }
+
+      if (!data.results?.length) {
+        results.innerHTML = `<div class="empty-state"><p>No results found for "${escapeHtml(query)}"</p></div>`;
+        return;
+      }
+
+      results.innerHTML = `
+        <div class="webintel-result-meta">Found ${data.count} result${data.count !== 1 ? "s" : ""} for <strong>"${escapeHtml(query)}"</strong></div>
+        ${data.results.map((r, i) => `
+          <div class="webintel-result-card" style="animation-delay:${i * 0.06}s">
+            <div class="result-favicon">🌐</div>
+            <div class="result-body">
+              <a class="result-title" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.title || r.url)}</a>
+              <div class="result-url">${escapeHtml(r.url)}</div>
+              ${r.snippet ? `<div class="result-snippet">${escapeHtml(r.snippet)}</div>` : ""}
+              <div class="result-actions">
+                <button class="btn btn-small btn-secondary" onclick="WebIntel.scrapeUrl('${r.url.replace(/'/g, "\\'")}')">📄 Fetch Full Page</button>
+              </div>
+            </div>
+          </div>`).join("")}`;
+    } catch (e) {
+      results.innerHTML = `<div class="empty-state"><p>⚠️ Network error — is the backend running?</p></div>`;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function runScrape(url) {
+    const input = document.getElementById("webScrapeInput");
+    const output = document.getElementById("webScrapeOutput");
+    const targetUrl = url || input?.value.trim();
+    if (!targetUrl || !output) return;
+
+    if (input && !url) {
+      // Update input if using manual entry
+    } else if (input) {
+      input.value = targetUrl;
+    }
+
+    output.innerHTML = `<div class="webintel-loading"><div class="loading-spinner"></div><span>Fetching ${escapeHtml(targetUrl)}…</span></div>`;
+
+    const btn = document.getElementById("webScrapeBtn");
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/web/scrape`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: targetUrl, max_length: 8000 }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        output.innerHTML = `<div class="webintel-scrape-error">⚠️ ${escapeHtml(data.detail || "Fetch failed")}</div>`;
+        return;
+      }
+
+      const linksHtml = data.links?.slice(0, 10).map(l =>
+        `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener" class="scrape-link">${escapeHtml(l.text || l.url)}</a>`
+      ).join("") || "";
+
+      output.innerHTML = `
+        <div class="scrape-header">
+          <div class="scrape-title">${escapeHtml(data.title || targetUrl)}</div>
+          <div class="scrape-meta"><a href="${escapeHtml(data.url)}" target="_blank" rel="noopener">${escapeHtml(data.url)}</a>${data.truncated ? " · <em>truncated</em>" : ""}</div>
+        </div>
+        <pre class="scrape-content">${escapeHtml(data.text || "")}</pre>
+        ${linksHtml ? `<div class="scrape-links-section"><strong>Links extracted:</strong><div class="scrape-links">${linksHtml}</div></div>` : ""}`;
+    } catch (e) {
+      output.innerHTML = `<div class="webintel-scrape-error">⚠️ Cannot reach backend</div>`;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function scrapeUrl(url) {
+    const input = document.getElementById("webScrapeInput");
+    const scrapeCard = document.querySelector(".webintel-scrape-card");
+    if (input) input.value = url;
+    if (scrapeCard) scrapeCard.scrollIntoView({ behavior: "smooth" });
+    runScrape(url);
+  }
+
+  return { init, scrapeUrl };
+})();
 
 // ══════════════════════════════════════════════════
 // FILE EXPLORER MODULE

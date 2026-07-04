@@ -1,7 +1,9 @@
 """
 API routes for the Local Filesystem Agent.
 """
+import asyncio
 import json
+import os
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -304,6 +306,128 @@ async def delete_memory(key: str):
 async def list_tools():
     """List all available tools."""
     return {"tools": registry.list_tools()}
+
+
+# ─── System Monitoring ──────────────────────────────────
+@router.get("/api/system/metrics")
+async def system_metrics():
+    """Real-time CPU, RAM, disk, network, and GPU telemetry."""
+    tool = registry.get("system_metrics")
+    if not tool:
+        raise HTTPException(status_code=503, detail="system_metrics tool not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/system/processes")
+async def system_processes(tree: bool = False, limit: int = 200):
+    """List running processes, optionally as a parent-child tree."""
+    tool_name = "process_tree" if tree else "process_list"
+    tool = registry.get(tool_name)
+    if not tool:
+        raise HTTPException(status_code=503, detail=f"{tool_name} tool not available")
+    result = await tool.execute({"limit": limit})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.post("/api/system/kill")
+async def system_kill_process(pid: int, force: bool = False):
+    """Terminate a process by PID."""
+    tool = registry.get("kill_process")
+    if not tool:
+        raise HTTPException(status_code=503, detail="kill_process tool not available")
+    result = await tool.execute({"pid": pid, "force": force})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/system/connections")
+async def system_connections(kind: str = "inet", limit: int = 100):
+    """List active network connections and listening ports."""
+    tool = registry.get("network_connections")
+    if not tool:
+        raise HTTPException(status_code=503, detail="network_connections tool not available")
+    result = await tool.execute({"kind": kind, "limit": limit})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Filesystem Search Index ────────────────────────────
+@router.get("/api/index/status")
+async def index_status():
+    """Status of the background filesystem search index."""
+    tool = registry.get("index_status")
+    if not tool:
+        raise HTTPException(status_code=503, detail="index_status tool not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.post("/api/index/rebuild")
+async def index_rebuild():
+    """Trigger a full background rebuild of the search index."""
+    tool = registry.get("rebuild_index")
+    if not tool:
+        raise HTTPException(status_code=503, detail="rebuild_index tool not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/index/search")
+async def index_search(q: str, limit: int = 50):
+    """Instant filename search against the pre-built index."""
+    tool = registry.get("indexed_search")
+    if not tool:
+        raise HTTPException(status_code=503, detail="indexed_search tool not available")
+    result = await tool.execute({"query": q, "limit": limit})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Web / Browser Integration ──────────────────────────
+class WebSearchRequest(BaseModel):
+    query: str
+    max_results: int = 5
+
+
+@router.post("/api/web/search")
+async def web_search(request: WebSearchRequest):
+    """Search the web (requires internet access)."""
+    tool = registry.get("web_search")
+    if not tool:
+        raise HTTPException(status_code=503, detail="web_search tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class WebScrapeRequest(BaseModel):
+    url: str
+    max_length: int = 5000
+
+
+@router.post("/api/web/scrape")
+async def web_scrape(request: WebScrapeRequest):
+    """Fetch and extract readable content from a web page (requires internet access)."""
+    tool = registry.get("web_scrape")
+    if not tool:
+        raise HTTPException(status_code=503, detail="web_scrape tool not available")
+    result = await tool.execute(request.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
 
 
 # ─── File Browser (Navigation MVP) ──────────────────────
@@ -895,3 +1019,86 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         pass
+
+
+# ─── Interactive Terminal (PTY) ───────────────────────
+@router.websocket("/ws/terminal")
+async def terminal_websocket(websocket: WebSocket):
+    """Real interactive shell over WebSocket, backed by a pseudo-terminal (PTY).
+
+    Protocol (JSON frames both ways):
+      client -> server: {"type": "input", "data": "<keystrokes>"}
+                         {"type": "resize", "rows": 24, "cols": 80}
+      server -> client: {"type": "output", "data": "<raw terminal bytes as text>"}
+                         {"type": "exit"}
+                         {"type": "error", "message": "..."}
+    """
+    await websocket.accept()
+
+    try:
+        from terminal.pty_session import PtySession
+    except ImportError:
+        await websocket.send_json(
+            {"type": "error", "message": "Interactive terminal is not supported on this platform"}
+        )
+        await websocket.close()
+        return
+
+    session = PtySession(cwd=os.path.expanduser("~"))
+    try:
+        session.spawn()
+    except Exception as e:
+        await websocket.send_json({"type": "error", "message": f"Failed to start shell: {e}"})
+        await websocket.close()
+        return
+
+    loop = asyncio.get_event_loop()
+    output_queue: asyncio.Queue = asyncio.Queue()
+
+    def on_readable():
+        try:
+            data = os.read(session.fd, 65536)
+        except OSError:
+            data = b""
+        if data:
+            output_queue.put_nowait(data)
+        else:
+            try:
+                loop.remove_reader(session.fd)
+            except Exception:
+                pass
+            output_queue.put_nowait(None)
+
+    loop.add_reader(session.fd, on_readable)
+
+    async def sender_loop():
+        while True:
+            data = await output_queue.get()
+            if data is None:
+                await websocket.send_json({"type": "exit"})
+                break
+            await websocket.send_json({"type": "output", "data": data.decode(errors="replace")})
+
+    sender_task = asyncio.create_task(sender_loop())
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            mtype = payload.get("type")
+            if mtype == "input":
+                session.write(payload.get("data", "").encode())
+            elif mtype == "resize":
+                session.resize(int(payload.get("rows", 24)), int(payload.get("cols", 80)))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        try:
+            loop.remove_reader(session.fd)
+        except Exception:
+            pass
+        sender_task.cancel()
+        session.close()

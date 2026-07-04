@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# work status file
+progress.txt
+
 # Logs
 *.log
 logs/

@@ -9,6 +9,21 @@ Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 
 ## ✨ New Features
 
+### 🖥️ Live Telemetry & Dashboard
+- **System Monitor**: Real-time polling of CPU per-core usage, RAM & Swap distribution, active Disk I/O, Network bandwidth, and GPU stats.
+- **Process Manager**: Live process tree with instant termination (kill) capabilities directly from the UI.
+- **Top Vitals Tray**: A persistent global telemetry bar that tracks system health across all tabs.
+
+### ⚡ Interactive Terminal (PTY)
+- Full xterm.js integration with real-time WebSocket connection to the backend shell.
+- Full support for interactive commands (e.g., `nano`, `htop`, `git`), job control, ANSI colors, and window auto-resizing.
+
+### 🌐 Web Intelligence
+- **Web Search**: DuckDuckGo search integration with instant result cards.
+- **Web Scrape**: BeautifulSoup-powered full-page fetcher to instantly read and extract content from URLs without external API keys.
+
+### 🔌 Integrations Hub
+- A dedicated panel to manage active and planned extensions, bridging local systems (System Telemetry, Web Intelligence, PTY, FTS5 Search) with upcoming plugins (Database Query, Email IMAP, Docker).
 ### 🧠 Multi-Step Reasoning & Intelligent Path Resolution
 - **No need to know file paths!** Just say "rename myfile.txt" and the agent:
   1. Searches for the file across your system

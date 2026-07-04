@@ -950,6 +950,7 @@ document
 async function checkLlmHealth() {
   const statusEl = document.getElementById("llmStatus");
   const connEl = document.getElementById("connectionStatus");
+  const trayLlm = document.getElementById("vtLlmStatus");
 
   try {
     const res = await fetch(`${API_BASE}/api/settings/llm/health`);
@@ -958,6 +959,8 @@ async function checkLlmHealth() {
     if (data.status === "connected") {
       statusEl.innerHTML = `<div class="status-dot connected"></div><span>Connected</span>`;
       connEl.innerHTML = `<div class="status-dot connected"></div><span>LLM Connected</span>`;
+      if (trayLlm) trayLlm.textContent = "Connected";
+      if (trayLlm) trayLlm.style.color = "var(--success)";
 
       // Show available models
       const modelsList = document.getElementById("modelsList");
@@ -972,10 +975,14 @@ async function checkLlmHealth() {
     } else {
       statusEl.innerHTML = `<div class="status-dot disconnected"></div><span>${data.error || "Disconnected"}</span>`;
       connEl.innerHTML = `<div class="status-dot disconnected"></div><span>LLM Disconnected</span>`;
+      if (trayLlm) trayLlm.textContent = "Disconnected";
+      if (trayLlm) trayLlm.style.color = "var(--danger)";
     }
   } catch (err) {
     statusEl.innerHTML = `<div class="status-dot disconnected"></div><span>Backend offline</span>`;
     connEl.innerHTML = `<div class="status-dot disconnected"></div><span>Backend Offline</span>`;
+    if (trayLlm) trayLlm.textContent = "Offline";
+    if (trayLlm) trayLlm.style.color = "var(--danger)";
   }
 }
 
@@ -1214,22 +1221,29 @@ const SystemMonitor = (() => {
   const el = (id) => document.getElementById(id);
 
   // ── Start / Stop ──────────────────────────────
-  function start() {
-    if (pollTimer) return; // already running
+  let metricsTimer = null;
+  let processesTimer = null;
+
+  function initGlobal() {
+    if (metricsTimer) return;
     fetchMetrics();
+    metricsTimer = setInterval(fetchMetrics, 3000);
+  }
+
+  function start() {
+    if (processesTimer) return;
     fetchProcesses();
     fetchIndexStatus();
-    pollTimer = setInterval(() => {
-      fetchMetrics();
+    processesTimer = setInterval(() => {
       fetchProcesses();
       fetchIndexStatus();
     }, 3000);
   }
 
   function stop() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    if (processesTimer) {
+      clearInterval(processesTimer);
+      processesTimer = null;
     }
   }
 
@@ -1245,30 +1259,41 @@ const SystemMonitor = (() => {
       updateNetwork(m.network, m.timestamp);
       updateGpu(m.gpu);
       updateUptime(m.uptime_seconds);
-      // Sidebar gauges
-      updateSidebarGauge("gaugeCpu", "gaugeCpuRing", "gaugeCpuValue", m.cpu.percent);
-      updateSidebarGauge("gaugeRam", "gaugeRamRing", "gaugeRamValue", m.memory.percent);
-      const diskMain = m.disks?.[0];
-      if (diskMain) updateSidebarGauge("gaugeDisk", "gaugeDiskRing", "gaugeDiskValue", diskMain.percent);
+      
+      // Global Sidebar and Tray vitals
+      const cpuPct = m.cpu.percent;
+      const ramPct = m.memory.percent;
+      const diskPct = m.disks?.[0]?.percent || 0;
+
+      updateVitalBar("gaugeCpuValue", "gaugeCpuBar", "vtCpuVal", "vtCpuBar", cpuPct);
+      updateVitalBar("gaugeRamValue", "gaugeRamBar", "vtRamVal", "vtRamBar", ramPct);
+      updateVitalBar("gaugeDiskValue", "gaugeDiskBar", "vtDiskVal", "vtDiskBar", diskPct);
     } catch (e) {
       console.warn("System metrics unavailable:", e);
     }
   }
 
-  function updateSidebarGauge(gaugeId, ringId, valueId, percent) {
-    const ring = el(ringId);
-    const value = el(valueId);
-    if (!ring || !value) return;
-    const r = 26;
-    const circ = 2 * Math.PI * r;
-    const pct = Math.min(100, Math.max(0, percent));
-    const dashOffset = circ * (1 - pct / 100);
-    ring.style.strokeDasharray = circ;
-    ring.style.strokeDashoffset = dashOffset;
-    // color
-    const hue = 120 - (pct / 100) * 120; // green→red
-    ring.style.stroke = `hsl(${hue},90%,55%)`;
-    value.textContent = `${Math.round(pct)}%`;
+  function updateVitalBar(sbValId, sbBarId, trayValId, trayBarId, pct) {
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    const color = `hsl(${120 - (p / 100) * 120}, 90%, 55%)`;
+
+    // Sidebar
+    const sbVal = el(sbValId);
+    const sbBar = el(sbBarId);
+    if (sbVal) sbVal.textContent = p + "%";
+    if (sbBar) {
+      sbBar.style.width = p + "%";
+      sbBar.style.background = color;
+    }
+
+    // Tray
+    const trayVal = el(trayValId);
+    const trayBar = el(trayBarId);
+    if (trayVal) trayVal.textContent = p + "%";
+    if (trayBar) {
+      trayBar.style.width = p + "%";
+      trayBar.style.background = color;
+    }
   }
 
   function updateCpu(cpu) {
@@ -1353,6 +1378,8 @@ const SystemMonitor = (() => {
     if (networkHistory.length > MAX_NET_HISTORY) networkHistory.shift();
 
     if (foot) foot.textContent = `↓ ${fmtBytes(recvRate)}/s  ·  ↑ ${fmtBytes(sentRate)}/s  ·  Total ↓ ${fmtBytes(net.bytes_recv)}`;
+    const vtNet = el("vtNetVal");
+    if (vtNet) vtNet.textContent = `${fmtBytes(recvRate)}/s`;
 
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -1387,12 +1414,16 @@ const SystemMonitor = (() => {
   }
 
   function updateUptime(seconds) {
-    const display = el("uptimeDisplay");
-    if (!display) return;
     const d = Math.floor(seconds / 86400);
     const h = Math.floor((seconds % 86400) / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    display.textContent = `${d}d ${h}h ${m}m`;
+    const str = `${d}d ${h}h ${m}m`;
+    
+    const display = el("uptimeDisplay");
+    if (display) display.textContent = str;
+
+    const vtUptime = el("vtUptime");
+    if (vtUptime) vtUptime.textContent = str;
   }
 
   // ── Processes ─────────────────────────────────
@@ -1480,8 +1511,10 @@ const SystemMonitor = (() => {
     } catch (e) { showToast("Cannot reach backend", "error"); }
   }
 
-  return { start, stop, killProcess, rebuildIndex };
+  return { initGlobal, start, stop, killProcess, rebuildIndex };
 })();
+
+SystemMonitor.initGlobal();
 
 
 // ══════════════════════════════════════════════════

@@ -3,6 +3,10 @@
 Natural language → Plan → Safe execution on your files.  
 Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 
+# UI
+<img width="1920" height="962" alt="image" src="https://github.com/user-attachments/assets/9a0ced59-d3f4-4111-9f69-527591a50f4e" />
+
+
 ## ✨ New Features
 
 ### 🧠 Multi-Step Reasoning & Intelligent Path Resolution

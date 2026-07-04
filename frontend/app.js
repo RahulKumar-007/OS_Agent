@@ -10,8 +10,221 @@ let currentPlan = null;
 let permissionMode = "ask_each";
 let mediaRecorder = null;
 let audioChunks = [];
+const prefersReducedMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+).matches;
 
-// ─── Navigation ─────────────────────────────────
+// ─── Sidebar toggle (mobile) ──────────────────────
+ const sidebarToggleBtn = document.getElementById("sidebarToggle");
+if (sidebarToggleBtn) {
+  sidebarToggleBtn.addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("open");
+  });
+}
+
+// ─── AI Presence State ──────────────────────
+const STATUS_LABELS = {
+  idle: "SYSTEM READY",
+  thinking: "ANALYZING REQUEST",
+  listening: "LISTENING",
+  speaking: "RESPONDING",
+  executing: "EXECUTING PLAN",
+};
+
+function setAiState(state) {
+  const aiCore = document.getElementById("aiCore");
+  const strip = document.getElementById("consoleStatusStrip");
+  const stripText = document.getElementById("consoleStatusText");
+  const heroStatus = document.getElementById("heroStatus");
+
+  [aiCore, strip].forEach((el) => {
+    if (!el) return;
+    el.classList.remove("thinking", "listening", "speaking", "executing");
+    if (state !== "idle") el.classList.add(state);
+  });
+
+  const label = STATUS_LABELS[state] || STATUS_LABELS.idle;
+  if (stripText) stripText.textContent = label;
+  if (heroStatus) {
+    const span = heroStatus.querySelector("span:last-child");
+    if (span) span.textContent = `${label} — AEGIS ONLINE`;
+  }
+}
+
+// ─── Ambient Background Field ──────────────────
+function initBackgroundFX() {
+  const canvas = document.getElementById("bgCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  let w, h, particles;
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  function makeParticles() {
+    const count = Math.min(90, Math.floor((w * h) / 16000));
+    particles = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.12,
+      vy: (Math.random() - 0.5) * 0.12,
+      r: Math.random() * 1.6 + 0.4,
+    }));
+  }
+
+  resize();
+  makeParticles();
+  window.addEventListener("resize", () => {
+    resize();
+    makeParticles();
+  });
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(79, 243, 255, 0.55)";
+    for (const p of particles) {
+      if (!prefersReducedMotion) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+      }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // faint connecting lines between nearby particles
+    ctx.strokeStyle = "rgba(79, 243, 255, 0.08)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i],
+          b = particles[j];
+        const dx = a.x - b.x,
+          dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          ctx.globalAlpha = 1 - dist / 120;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (!prefersReducedMotion) requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ─── Holographic Wireframe Globe (AI Core hero) ────────
+function initGlobe() {
+  const canvas = document.getElementById("globeCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const size = canvas.width;
+  const cx = size / 2,
+    cy = size / 2;
+  const radius = size * 0.38;
+  let rotation = 0;
+
+  const satellites = [
+    { angle: 0, speed: 0.014, dist: radius + 22, size: 2.6 },
+    { angle: 2.1, speed: -0.009, dist: radius + 34, size: 2 },
+  ];
+
+  function project(lat, lon) {
+    const x = radius * Math.cos(lat) * Math.sin(lon);
+    const y = radius * Math.sin(lat);
+    const z = radius * Math.cos(lat) * Math.cos(lon);
+    return { x, y, z };
+  }
+
+  function drawLine(points, alphaScale = 1) {
+    ctx.beginPath();
+    let started = false;
+    for (const p of points) {
+      const cosR = Math.cos(rotation),
+        sinR = Math.sin(rotation);
+      const x = p.x * cosR + p.z * sinR;
+      const z = -p.x * sinR + p.z * cosR;
+      const scale = (z + radius * 2.2) / (radius * 3.2);
+      const sx = cx + x * scale;
+      const sy = cy + p.y * scale;
+      if (!started) {
+        ctx.moveTo(sx, sy);
+        started = true;
+      } else {
+        ctx.lineTo(sx, sy);
+      }
+    }
+    ctx.globalAlpha = 0.35 * alphaScale;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, size, size);
+    ctx.strokeStyle = "#4ff3ff";
+    ctx.lineWidth = 1;
+
+    // latitude rings
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const pts = [];
+      for (let lon = 0; lon <= 360; lon += 6) {
+        pts.push(project((lat * Math.PI) / 180, (lon * Math.PI) / 180));
+      }
+      drawLine(pts, lat === 0 ? 1.4 : 0.8);
+    }
+    // longitude rings
+    for (let lon = 0; lon < 180; lon += 30) {
+      const pts = [];
+      for (let lat = -90; lat <= 90; lat += 6) {
+        pts.push(project((lat * Math.PI) / 180, (lon * Math.PI) / 180));
+      }
+      drawLine(pts, 0.7);
+    }
+
+    // outer atmosphere glow
+    const grad = ctx.createRadialGradient(cx, cy, radius * 0.9, cx, cy, radius * 1.35);
+    grad.addColorStop(0, "rgba(79,243,255,0.12)");
+    grad.addColorStop(1, "rgba(79,243,255,0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // orbiting satellites
+    satellites.forEach((s) => {
+      if (!prefersReducedMotion) s.angle += s.speed;
+      const sx = cx + Math.cos(s.angle) * s.dist;
+      const sy = cy + Math.sin(s.angle) * s.dist * 0.4;
+      ctx.fillStyle = "#8ff5ff";
+      ctx.beginPath();
+      ctx.arc(sx, sy, s.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(143,245,255,0.5)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s.dist, s.dist * 0.4, 0, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.15;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+
+    if (!prefersReducedMotion) {
+      rotation += 0.0035;
+      requestAnimationFrame(draw);
+    }
+  }
+  draw();
+}
+
+// ─── System Telemetry (sidebar) ───────────
 document.querySelectorAll(".nav-item").forEach((btn) => {
   btn.addEventListener("click", () => {
     const page = btn.dataset.page;
@@ -67,6 +280,7 @@ function startVoiceRecognition() {
     isRecording = true;
     voiceBtn.classList.add("recording");
     chatInput.placeholder = "🎤 Listening...";
+    setAiState("listening");
   };
 
   recognition.onresult = (event) => {
@@ -96,7 +310,8 @@ function stopVoiceRecognition() {
   }
   isRecording = false;
   voiceBtn.classList.remove("recording");
-  chatInput.placeholder = "Tell me what to do with your files...";
+  chatInput.placeholder = "Enter command or natural language directive...";
+  setAiState("idle");
 }
 
 async function transcribeAudio(audioBlob) {
@@ -147,6 +362,7 @@ chatForm.addEventListener("submit", async (e) => {
 
   // Show typing indicator
   const typingEl = addTypingIndicator();
+  setAiState("thinking");
 
   try {
     const res = await fetch(`${API_BASE}/api/chat`, {
@@ -160,6 +376,7 @@ chatForm.addEventListener("submit", async (e) => {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       addMessage("agent", `❌ Error: ${err.detail || "Failed to create plan"}`);
+      setAiState("idle");
       return;
     }
 
@@ -167,8 +384,11 @@ chatForm.addEventListener("submit", async (e) => {
     currentTaskId = data.task_id;
     currentPlan = data.plan;
     addPlanCard(data.plan, data.task_id);
+    setAiState("speaking");
+    setTimeout(() => setAiState("idle"), 1600);
   } catch (err) {
     typingEl.remove();
+    setAiState("idle");
     addMessage(
       "agent",
       `❌ Cannot connect to backend at ${API_BASE}. Make sure the server is running.`,
@@ -553,6 +773,7 @@ function formatSize(bytes) {
 // ─── Plan Actions ───────────────────────────────
 async function approvePlan(taskId) {
   const typingEl = addTypingIndicator();
+  setAiState("executing");
 
   try {
     const res = await fetch(`${API_BASE}/api/approve`, {
@@ -569,13 +790,18 @@ async function approvePlan(taskId) {
         "agent",
         `❌ Execution failed: ${err.detail || "Unknown error"}`,
       );
+      setAiState("idle");
       return;
     }
 
     const data = await res.json();
     addReportCard(data.report);
+    setAiState("speaking");
+    setTimeout(() => setAiState("idle"), 1600);
+    loadSystemStatus();
   } catch (err) {
     typingEl.remove();
+    setAiState("idle");
     addMessage("agent", `❌ Execution error: ${err.message}`);
   }
 }
@@ -899,18 +1125,13 @@ document.getElementById("llmProvider").addEventListener("change", (e) => {
 // ─── Toast Notifications ────────────────────────
 function showToast(msg, type = "success") {
   const toast = document.createElement("div");
-  toast.style.cssText = `
-        position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
-        background: ${type === "error" ? "var(--danger)" : "var(--success)"};
-        color: white; border-radius: var(--radius-sm); font-size: 0.85rem;
-        z-index: 1000; animation: slideIn 0.3s ease; font-family: var(--font);
-    `;
+  toast.className = `holo-toast${type === "error" ? " error" : ""}`;
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => {
-    toast.style.opacity = "0";
+    toast.classList.add("fade-out");
     setTimeout(() => toast.remove(), 300);
-  }, 2500);
+  }, 2800);
 }
 
 // ─── Utility ────────────────────────────────────
@@ -921,9 +1142,54 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ─── System Telemetry ────────────────────────────
+async function loadSystemStatus() {
+  try {
+    const [toolsRes, memRes, tasksRes] = await Promise.all([
+      fetch(`${API_BASE}/api/tools`).catch(() => null),
+      fetch(`${API_BASE}/api/memory`).catch(() => null),
+      fetch(`${API_BASE}/api/tasks?limit=1000`).catch(() => null),
+    ]);
+
+    if (toolsRes?.ok) {
+      const data = await toolsRes.json();
+      const el = document.getElementById("sidebarToolCount");
+      if (el) el.textContent = (data.tools || []).length;
+    }
+    if (memRes?.ok) {
+      const data = await memRes.json();
+      const el = document.getElementById("sidebarMemoryCount");
+      if (el) el.textContent = Object.keys(data || {}).length;
+    }
+    if (tasksRes?.ok) {
+      const data = await tasksRes.json();
+      const el = document.getElementById("sidebarTaskCount");
+      if (el) el.textContent = data.total ?? (data.tasks || []).length;
+
+      const missionEl = document.getElementById("sidebarMissionText");
+      if (missionEl && data.tasks && data.tasks.length > 0) {
+        const last = data.tasks[0];
+        const label =
+          last.status === "executing"
+            ? "EXECUTING TASK"
+            : last.status === "awaiting_approval"
+              ? "AWAITING AUTHORIZATION"
+              : "STANDING BY";
+        missionEl.textContent = label;
+      }
+    }
+  } catch (err) {
+    console.warn("System telemetry unavailable:", err);
+  }
+}
+
 // ─── Init ───────────────────────────────────────
 checkLlmHealth();
 setInterval(checkLlmHealth, 30000);
+loadSystemStatus();
+setInterval(loadSystemStatus, 30000);
+initBackgroundFX();
+initGlobe();
 
 // ══════════════════════════════════════════════════
 // FILE EXPLORER MODULE

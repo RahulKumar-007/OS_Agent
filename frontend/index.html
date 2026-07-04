@@ -7,16 +7,23 @@
             name="description"
             content="Local Filesystem Agent — Natural language powered file management with local LLM"
         />
-        <title>FileAgent — Local Filesystem Agent</title>
+        <title>AEGIS — Autonomous Filesystem Intelligence</title>
+        <meta name="theme-color" content="#050810" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+            href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
             rel="stylesheet"
         />
         <link rel="stylesheet" href="styles.css" />
     </head>
     <body>
+        <!-- Cinematic ambient background layers -->
+        <canvas id="bgCanvas" class="bg-canvas"></canvas>
+        <div class="bg-grid"></div>
+        <div class="bg-scanline"></div>
+        <div class="bg-vignette"></div>
+
         <div id="app">
             <!-- Sidebar -->
             <aside class="sidebar" id="sidebar">
@@ -38,7 +45,10 @@
                                 />
                             </svg>
                         </div>
-                        <span class="logo-text">FileAgent</span>
+                        <div class="logo-text-wrap">
+                            <span class="logo-text">AEGIS</span>
+                            <span class="logo-subtext">FS INTELLIGENCE</span>
+                        </div>
                     </div>
                     <button
                         class="sidebar-toggle"
@@ -166,6 +176,26 @@
                     </button>
                 </nav>
 
+                <div class="sidebar-system">
+                    <div class="sidebar-system-title">System Telemetry</div>
+                    <div class="telemetry-stat">
+                        <span class="telemetry-label">Tools Online</span>
+                        <span class="telemetry-value" id="sidebarToolCount">--</span>
+                    </div>
+                    <div class="telemetry-stat">
+                        <span class="telemetry-label">Memory Entries</span>
+                        <span class="telemetry-value" id="sidebarMemoryCount">--</span>
+                    </div>
+                    <div class="telemetry-stat">
+                        <span class="telemetry-label">Tasks Logged</span>
+                        <span class="telemetry-value" id="sidebarTaskCount">--</span>
+                    </div>
+                    <div class="sidebar-mission" id="sidebarMission">
+                        <span class="mission-dot"></span>
+                        <span id="sidebarMissionText">STANDING BY</span>
+                    </div>
+                </div>
+
                 <div class="sidebar-footer">
                     <div class="connection-status" id="connectionStatus">
                         <div class="status-dot disconnected"></div>
@@ -180,29 +210,28 @@
                 <div class="page active" id="page-chat">
                     <div class="chat-container">
                         <div class="chat-messages" id="chatMessages">
-                            <div class="welcome-message">
-                                <div class="welcome-icon">
-                                    <svg
-                                        width="48"
-                                        height="48"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1.5"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    >
-                                        <path
-                                            d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                                        />
-                                    </svg>
-                                </div>
-                                <h1>Local Filesystem Agent</h1>
-                                <p>
-                                    Tell me what you'd like to do with your
-                                    files. I'll create a plan, show it to you,
-                                    and execute only after your approval.
-                                </p>
+                            <div class="welcome-message" id="aiHero">
+                                                            <div class="ai-core" id="aiCore">
+                                                                <canvas id="globeCanvas" class="ai-core-globe" width="280" height="280"></canvas>
+                                                                <div class="core-ring ring-1"></div>
+                                                                <div class="core-ring ring-2"></div>
+                                                                <div class="core-ring ring-3"></div>
+                                                                <div class="core-waveform" id="coreWaveform">
+                                                                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                                                                </div>
+                                                                <div class="core-center"></div>
+                                                            </div>
+                                                            <div class="hero-status" id="heroStatus">
+                                                                <span class="status-pulse-dot"></span>
+                                                                <span>SYSTEM READY — AWAITING COMMAND</span>
+                                                            </div>
+                                                            <h1>AEGIS</h1>
+                                                            <p>
+                                                                Autonomous filesystem intelligence, standing by.
+                                                                State your objective — I will construct a plan,
+                                                                present it for authorization, and execute with
+                                                                precision.
+                                                            </p>
                                 <div class="suggestions">
                                     <button
                                         class="suggestion-chip"
@@ -296,6 +325,16 @@
                             </div>
                         </div>
                         <div class="chat-input-area">
+                            <div class="console-status-strip" id="consoleStatusStrip">
+                                <div class="mini-core" id="miniCore">
+                                    <span class="mini-core-ring"></span>
+                                    <span class="mini-core-dot"></span>
+                                </div>
+                                <span class="console-status-text" id="consoleStatusText">SYSTEM READY</span>
+                                <div class="mini-waveform" id="miniWaveform">
+                                    <span></span><span></span><span></span><span></span><span></span>
+                                </div>
+                            </div>
                             <div class="permission-selector">
                                 <select
                                     id="permissionMode"
@@ -350,9 +389,10 @@
                                             />
                                         </svg>
                                     </button>
+                                    <span class="console-prompt">&gt;</span>
                                     <textarea
                                         id="chatInput"
-                                        placeholder="Tell me what to do with your files..."
+                                        placeholder="Enter command or natural language directive..."
                                         rows="1"
                                         autofocus
                                     ></textarea>

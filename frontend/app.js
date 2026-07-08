@@ -2560,3 +2560,593 @@ const Explorer = (() => {
 
   return { init, navigateTo, sendToChat, clearSearch, openFile, previewFile };
 })();
+
+/* ══════════════════════════════════════════════════════
+   PHASE 2 — JAVASCRIPT
+   ══════════════════════════════════════════════════════ */
+
+const API = 'http://localhost:8000';
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+
+function phase2Output(id, data) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (typeof data === 'object') {
+        el.textContent = JSON.stringify(data, null, 2);
+    } else {
+        el.textContent = String(data);
+    }
+}
+
+async function apiFetch(path, options = {}) {
+    try {
+        const res = await fetch(API + path, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options,
+        });
+        const json = await res.json();
+        return { ok: res.ok, data: json };
+    } catch (e) {
+        return { ok: false, data: { detail: String(e) } };
+    }
+}
+
+// ── Plugin Tabs ──────────────────────────────────────────────────────────────
+
+function pluginTab(name) {
+    document.querySelectorAll('.phase2-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.phase2-tab-panel').forEach(p => p.style.display = 'none');
+    event.target.classList.add('active');
+    const panel = document.getElementById('plugin-' + name);
+    if (panel) panel.style.display = '';
+}
+
+// ── Desktop: Clipboard ───────────────────────────────────────────────────────
+
+async function desktopClipRead() {
+    const r = await apiFetch('/api/desktop/clipboard');
+    if (r.ok) {
+        phase2Output('clipOutput', r.data.content || '(empty)');
+    } else {
+        phase2Output('clipOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+async function desktopClipWrite() {
+    const text = document.getElementById('clipWriteInput').value;
+    if (!text) return;
+    const r = await apiFetch('/api/desktop/clipboard', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+    });
+    if (r.ok) {
+        phase2Output('clipOutput', `✅ Copied ${r.data.written} chars to clipboard`);
+    } else {
+        phase2Output('clipOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+async function desktopClipHistory() {
+    const r = await apiFetch('/api/desktop/clipboard/history?limit=10');
+    if (r.ok) {
+        const items = r.data.history || [];
+        if (!items.length) {
+            phase2Output('clipOutput', 'No clipboard history yet.');
+            return;
+        }
+        const lines = items.map((h, i) => `[${i + 1}] ${new Date(h.timestamp).toLocaleTimeString()}: ${h.content.slice(0, 60)}`);
+        phase2Output('clipOutput', lines.join('\n'));
+    } else {
+        phase2Output('clipOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Desktop: Screenshot ──────────────────────────────────────────────────────
+
+async function desktopScreenshot() {
+    const mode = document.getElementById('screenshotMode').value;
+    const delay = parseInt(document.getElementById('screenshotDelay').value) || 0;
+    phase2Output('screenshotOutput', '📸 Capturing...');
+    const r = await apiFetch('/api/desktop/screenshot', {
+        method: 'POST',
+        body: JSON.stringify({ mode, delay }),
+    });
+    if (r.ok) {
+        phase2Output('screenshotOutput', `✅ Saved: ${r.data.path}`);
+    } else {
+        phase2Output('screenshotOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Desktop: Notifications ───────────────────────────────────────────────────
+
+async function desktopNotify() {
+    const title = document.getElementById('notifyTitle').value.trim();
+    if (!title) { phase2Output('notifyOutput', '⚠️ Title is required'); return; }
+    const body = document.getElementById('notifyBody').value.trim();
+    const urgency = document.getElementById('notifyUrgency').value;
+
+    const r = await apiFetch('/api/desktop/notify', {
+        method: 'POST',
+        body: JSON.stringify({ title, body, urgency }),
+    });
+    phase2Output('notifyOutput', r.ok ? '✅ ' + r.data.message : '❌ ' + (r.data.detail || 'Error'));
+}
+
+// ── Desktop: Windows ─────────────────────────────────────────────────────────
+
+async function desktopListWindows() {
+    const r = await apiFetch('/api/desktop/windows');
+    if (r.ok) {
+        const wins = r.data.windows || [];
+        if (!wins.length) { phase2Output('windowsOutput', 'No windows found (install wmctrl).'); return; }
+        const lines = wins.map(w =>
+            `[${w.id}] PID:${w.pid || '?'} — ${w.title || '(no title)'}`
+        );
+        const output = `${wins.length} windows:\n` + lines.join('\n');
+        phase2Output('windowsOutput', output);
+    } else {
+        phase2Output('windowsOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+async function desktopActiveWindow() {
+    const r = await apiFetch('/api/desktop/windows/active');
+    if (r.ok) {
+        phase2Output('windowsOutput', JSON.stringify(r.data, null, 2));
+    } else {
+        phase2Output('windowsOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Desktop: Display Info ────────────────────────────────────────────────────
+
+async function desktopDisplayInfo() {
+    const r = await apiFetch('/api/desktop/displays');
+    if (r.ok) {
+        const monitors = r.data.monitors || [];
+        const lines = monitors.map(m =>
+            `${m.name}${m.primary ? ' (primary)' : ''}: ${m.connected ? 'connected' : 'disconnected'} ${m.resolution || ''}`
+        );
+        phase2Output('displayOutput', lines.join('\n') || 'No monitors detected');
+    } else {
+        phase2Output('displayOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Scheduler ────────────────────────────────────────────────────────────────
+
+function schedulerTriggerChanged() {
+    const type = document.getElementById('jobTriggerType').value;
+    const iG = document.getElementById('jobIntervalGroup');
+    const dG = document.getElementById('jobDatetimeGroup');
+    if (iG) iG.style.display = (type === 'interval') ? '' : 'none';
+    if (dG) dG.style.display = (type === 'datetime') ? '' : 'none';
+}
+
+async function schedulerCreateJob() {
+    const name        = document.getElementById('jobName').value.trim();
+    const triggerType = document.getElementById('jobTriggerType').value;
+    const actionType  = document.getElementById('jobActionType').value;
+    const command     = document.getElementById('jobActionCommand').value.trim();
+
+    if (!name) { phase2Output('schedulerCreateOutput', '⚠️ Name is required'); return; }
+
+    let triggerData = {};
+    if (triggerType === 'interval') {
+        triggerData = { interval: document.getElementById('jobInterval').value || '1h' };
+    } else if (triggerType === 'datetime') {
+        triggerData = { datetime: document.getElementById('jobDatetime').value };
+    }
+
+    let actionData = {};
+    if (actionType === 'shell')      actionData = { command };
+    else if (actionType === 'notify') actionData = { title: name, body: command };
+    else if (actionType === 'agent_task') actionData = { message: command };
+
+    const r = await apiFetch('/api/scheduler/jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+            name,
+            trigger_type: triggerType,
+            trigger_data: triggerData,
+            action_type: actionType,
+            action_data: actionData,
+        }),
+    });
+
+    if (r.ok) {
+        phase2Output('schedulerCreateOutput', `✅ Job created: ${r.data.id}`);
+        schedulerLoadJobs();
+    } else {
+        phase2Output('schedulerCreateOutput', '❌ ' + (r.data.detail || JSON.stringify(r.data)));
+    }
+}
+
+async function schedulerLoadJobs() {
+    const r = await apiFetch('/api/scheduler/jobs');
+    const container = document.getElementById('schedulerJobsList');
+    if (!container) return;
+
+    if (!r.ok) {
+        container.innerHTML = `<p style="color:var(--text-muted);padding:1rem">Error: ${r.data.detail || 'Failed'}</p>`;
+        return;
+    }
+
+    const jobs = r.data.jobs || [];
+    if (!jobs.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:2rem">No jobs scheduled</p>';
+        return;
+    }
+
+    const rows = jobs.map(j => `
+        <tr>
+            <td>${j.name}</td>
+            <td>${j.trigger_type}</td>
+            <td>${j.action_type}</td>
+            <td><span class="job-badge ${j.enabled ? 'enabled' : 'disabled'}">${j.enabled ? 'ON' : 'OFF'}</span></td>
+            <td>${j.next_run ? new Date(j.next_run).toLocaleString() : '—'}</td>
+            <td>${j.run_count}</td>
+            <td>
+                <div class="job-actions">
+                    <button class="job-action-btn" onclick="schedulerRunNow('${j.id}')">▶ Run</button>
+                    <button class="job-action-btn danger" onclick="schedulerDelete('${j.id}')">✕ Del</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    container.innerHTML = `
+        <table class="phase2-table">
+            <thead><tr>
+                <th>Name</th><th>Trigger</th><th>Action</th>
+                <th>Status</th><th>Next Run</th><th>Runs</th><th>Actions</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+}
+
+async function schedulerRunNow(id) {
+    const r = await apiFetch(`/api/scheduler/jobs/${id}/run`, { method: 'POST' });
+    if (r.ok) {
+        showToast('Job triggered', 'success');
+        setTimeout(schedulerLoadJobs, 1000);
+    } else {
+        showToast('Failed to trigger job: ' + (r.data.detail || ''), 'error');
+    }
+}
+
+async function schedulerDelete(id) {
+    if (!confirm('Delete this job?')) return;
+    const r = await apiFetch(`/api/scheduler/jobs/${id}`, { method: 'DELETE' });
+    if (r.ok) schedulerLoadJobs();
+}
+
+// Page load trigger
+document.addEventListener('DOMContentLoaded', () => {
+    // Auto-load scheduler on page switch
+    document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const page = btn.dataset.page;
+            if (page === 'scheduler') schedulerLoadJobs();
+            if (page === 'knowledge') { kbLoadNotes(); kbLoadProjects(); }
+        });
+    });
+});
+
+// ── Knowledge Base ───────────────────────────────────────────────────────────
+
+let _kbCurrentNoteId = null;
+
+async function kbLoadNotes() {
+    const project = document.getElementById('kbProjectFilter')?.value || '';
+    const r = await apiFetch(`/api/kb/notes?project=${encodeURIComponent(project)}&limit=100`);
+    const container = document.getElementById('kbNotesList');
+    if (!container) return;
+
+    if (!r.ok) { container.innerHTML = '<p style="color:var(--text-muted)">Error loading notes</p>'; return; }
+    const notes = r.data.notes || [];
+
+    if (!notes.length) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:1rem">No notes yet. Create one!</p>';
+        return;
+    }
+
+    container.innerHTML = notes.map(n => `
+        <div class="kb-note-item ${n.id === _kbCurrentNoteId ? 'active' : ''}" onclick="kbOpenNote('${n.id}')">
+            <div class="kb-note-item-title">${escapeHtml(n.title)}</div>
+            <div class="kb-note-item-meta">
+                ${(n.tags || []).map(t => `<span class="kb-note-tag">${escapeHtml(t)}</span>`).join('')}
+                <span>${n.word_count || 0} words</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function kbLoadProjects() {
+    const r = await apiFetch('/api/kb/projects');
+    const sel = document.getElementById('kbProjectFilter');
+    if (!sel || !r.ok) return;
+    const projects = r.data.projects || [];
+    sel.innerHTML = '<option value="">All Projects</option>' +
+        projects.map(p => `<option value="${escapeHtml(p.project)}">${escapeHtml(p.project)} (${p.note_count})</option>`).join('');
+}
+
+async function kbOpenNote(id) {
+    const r = await apiFetch(`/api/kb/notes/${id}`);
+    if (!r.ok) return;
+    const note = r.data;
+    _kbCurrentNoteId = note.id;
+
+    document.getElementById('kbEditorEmpty').style.display = 'none';
+    const active = document.getElementById('kbEditorActive');
+    active.style.display = 'flex';
+
+    document.getElementById('kbNoteTitle').value   = note.title || '';
+    document.getElementById('kbNoteContent').value = note.content || '';
+    document.getElementById('kbNoteTags').value    = (note.tags || []).join(', ');
+    document.getElementById('kbNoteProject').value = note.project || '';
+
+    kbLoadNotes(); // refresh active state
+}
+
+function kbNewNote() {
+    _kbCurrentNoteId = null;
+    document.getElementById('kbEditorEmpty').style.display = 'none';
+    const active = document.getElementById('kbEditorActive');
+    active.style.display = 'flex';
+    document.getElementById('kbNoteTitle').value   = '';
+    document.getElementById('kbNoteContent').value = '';
+    document.getElementById('kbNoteTags').value    = '';
+    document.getElementById('kbNoteProject').value = '';
+}
+
+async function kbSaveNote() {
+    const title   = document.getElementById('kbNoteTitle').value.trim();
+    const content = document.getElementById('kbNoteContent').value;
+    const tags    = document.getElementById('kbNoteTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    const project = document.getElementById('kbNoteProject').value.trim();
+
+    if (!title) { showToast('Title is required', 'error'); return; }
+
+    let r;
+    if (_kbCurrentNoteId) {
+        r = await apiFetch(`/api/kb/notes/${_kbCurrentNoteId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ title, content, tags, project }),
+        });
+    } else {
+        r = await apiFetch('/api/kb/notes', {
+            method: 'POST',
+            body: JSON.stringify({ title, content, tags, project }),
+        });
+        if (r.ok) _kbCurrentNoteId = r.data.id;
+    }
+
+    if (r.ok) {
+        showToast('Note saved ✓', 'success');
+        kbLoadNotes();
+        kbLoadProjects();
+    } else {
+        showToast('Failed: ' + (r.data.detail || 'Error'), 'error');
+    }
+}
+
+async function kbDeleteNote() {
+    if (!_kbCurrentNoteId || !confirm('Delete this note?')) return;
+    const r = await apiFetch(`/api/kb/notes/${_kbCurrentNoteId}`, { method: 'DELETE' });
+    if (r.ok) {
+        _kbCurrentNoteId = null;
+        document.getElementById('kbEditorEmpty').style.display = '';
+        document.getElementById('kbEditorActive').style.display = 'none';
+        kbLoadNotes();
+    }
+}
+
+async function kbShowBacklinks() {
+    if (!_kbCurrentNoteId) return;
+    const r = await apiFetch(`/api/kb/notes/${_kbCurrentNoteId}/backlinks`);
+    if (r.ok) {
+        const links = r.data.backlinks || [];
+        showToast(links.length ? `${links.length} backlinks: ${links.map(l => l.title).join(', ')}` : 'No backlinks found');
+    }
+}
+
+async function kbSearchNotes() {
+    const q = document.getElementById('kbSearch')?.value?.trim();
+    if (!q) { kbLoadNotes(); return; }
+    const r = await apiFetch(`/api/kb/search?q=${encodeURIComponent(q)}&limit=30`);
+    const container = document.getElementById('kbNotesList');
+    if (!container || !r.ok) return;
+    const notes = r.data.results || [];
+    if (!notes.length) { container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:1rem">No results</p>'; return; }
+    container.innerHTML = notes.map(n => `
+        <div class="kb-note-item" onclick="kbOpenNote('${n.id}')">
+            <div class="kb-note-item-title">${escapeHtml(n.title)}</div>
+            <div class="kb-note-item-meta">${n.snippet ? escapeHtml(n.snippet.slice(0, 80)) + '...' : ''}</div>
+        </div>
+    `).join('');
+}
+
+// ── Plugin: VS Code ───────────────────────────────────────────────────────────
+
+async function pluginVscodeOpen() {
+    const path = document.getElementById('vscodePath')?.value?.trim();
+    if (!path) { phase2Output('vscodeOutput', '⚠️ Path required'); return; }
+    const line = parseInt(document.getElementById('vscodeLine')?.value) || null;
+    const new_window = document.getElementById('vscodeNewWindow')?.checked || false;
+
+    const r = await apiFetch('/api/plugin/vscode/open', {
+        method: 'POST',
+        body: JSON.stringify({ path, line, new_window }),
+    });
+    phase2Output('vscodeOutput', r.ok ? '✅ ' + r.data.message : '❌ ' + (r.data.detail || 'Error'));
+}
+
+// ── Plugin: Docker ───────────────────────────────────────────────────────────
+
+async function dockerList(type = 'containers', all = false) {
+    const r = await apiFetch(`/api/plugin/docker/list?list_type=${type}&all=${all}`);
+    const container = document.getElementById('dockerList');
+    if (!container) return;
+
+    if (!r.ok) { container.innerHTML = `<p style="padding:0.75rem;color:var(--text-muted)">Error: ${r.data.detail || 'Docker not available'}</p>`; return; }
+
+    const items = r.data.items || [];
+    if (!items.length) { container.innerHTML = `<p style="padding:0.75rem;color:var(--text-muted)">No ${type} found</p>`; return; }
+
+    const keys = Object.keys(items[0]).slice(0, 6);
+    const rows = items.map(item => `<tr>${keys.map(k => `<td>${escapeHtml(String(item[k] || ''))}</td>`).join('')}</tr>`).join('');
+    container.innerHTML = `<table class="phase2-table"><thead><tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function dockerAction() {
+    const container = document.getElementById('dockerContainer')?.value?.trim();
+    const action    = document.getElementById('dockerAction')?.value;
+    const r = await apiFetch('/api/plugin/docker/action', {
+        method: 'POST',
+        body: JSON.stringify({ action, container }),
+    });
+    phase2Output('dockerOutput', r.ok ? '✅ ' + r.data.message : '❌ ' + (r.data.detail || 'Error'));
+    if (r.ok) dockerList();
+}
+
+async function dockerGetLogs() {
+    const container = document.getElementById('dockerLogsId')?.value?.trim();
+    const tail      = parseInt(document.getElementById('dockerLogsTail')?.value) || 50;
+    if (!container) { phase2Output('dockerOutput', '⚠️ Container name required'); return; }
+    const r = await apiFetch(`/api/plugin/docker/logs?container=${encodeURIComponent(container)}&tail=${tail}`);
+    phase2Output('dockerOutput', r.ok ? r.data.logs : '❌ ' + (r.data.detail || 'Error'));
+}
+
+// ── Plugin: Package Manager ───────────────────────────────────────────────────
+
+async function pkgRun() {
+    const manager  = document.getElementById('pkgManager')?.value;
+    const action   = document.getElementById('pkgAction')?.value;
+    const pkg      = document.getElementById('pkgName')?.value?.trim();
+    const dry_run  = document.getElementById('pkgDryRun')?.checked || false;
+
+    phase2Output('pkgOutput', `Running: ${manager} ${action} ${pkg}...`);
+    const r = await apiFetch('/api/plugin/packages', {
+        method: 'POST',
+        body: JSON.stringify({ manager, action, package: pkg, dry_run }),
+    });
+    if (r.ok) {
+        const out = r.data.stdout || r.data.stderr || JSON.stringify(r.data);
+        phase2Output('pkgOutput', out);
+    } else {
+        phase2Output('pkgOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Plugin: HTTP Tester ──────────────────────────────────────────────────────
+
+async function httpSend() {
+    const url    = document.getElementById('httpUrl')?.value?.trim();
+    const method = document.getElementById('httpMethod')?.value || 'GET';
+    if (!url) { phase2Output('httpResponse', '⚠️ URL required'); return; }
+
+    let headers = {}, json_body = null;
+    try {
+        const hText = document.getElementById('httpHeaders')?.value?.trim();
+        if (hText) headers = JSON.parse(hText);
+    } catch { phase2Output('httpResponse', '❌ Invalid headers JSON'); return; }
+
+    try {
+        const bText = document.getElementById('httpBody')?.value?.trim();
+        if (bText && method !== 'GET') json_body = JSON.parse(bText);
+    } catch { phase2Output('httpResponse', '❌ Invalid body JSON'); return; }
+
+    phase2Output('httpResponse', 'Sending...');
+    const r = await apiFetch('/api/plugin/http', {
+        method: 'POST',
+        body: JSON.stringify({ url, method, headers, json_body }),
+    });
+
+    if (r.ok) {
+        const d = r.data;
+        const summary = `HTTP ${d.status_code} — ${d.elapsed_ms}ms\n\n${JSON.stringify(d.body, null, 2)}`;
+        phase2Output('httpResponse', summary);
+    } else {
+        phase2Output('httpResponse', '❌ ' + (r.data.detail || 'Request failed'));
+    }
+}
+
+// ── Plugin: SQLite ───────────────────────────────────────────────────────────
+
+async function sqliteExec() {
+    const db  = document.getElementById('sqliteDb')?.value?.trim();
+    const sql = document.getElementById('sqliteQuery')?.value?.trim();
+    if (!db)  { phase2Output('sqliteOutput', '⚠️ Database path required'); return; }
+    if (!sql) { phase2Output('sqliteOutput', '⚠️ SQL query required'); return; }
+
+    const r = await apiFetch('/api/plugin/sqlite/query', {
+        method: 'POST',
+        body: JSON.stringify({ database: db, sql }),
+    });
+    if (r.ok) {
+        const d = r.data;
+        if (d.rows && d.rows.length) {
+            // Render as table
+            const keys = Object.keys(d.rows[0]);
+            const rows = d.rows.map(row => `<tr>${keys.map(k => `<td>${escapeHtml(String(row[k] ?? ''))}</td>`).join('')}</tr>`).join('');
+            document.getElementById('sqliteOutput').innerHTML =
+                `<table class="phase2-table"><thead><tr>${keys.map(k => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+        } else {
+            phase2Output('sqliteOutput', `✅ ${d.message || `${d.affected} rows affected`}`);
+        }
+    } else {
+        phase2Output('sqliteOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+async function sqliteTables() {
+    const db = document.getElementById('sqliteDb')?.value?.trim();
+    if (!db) { phase2Output('sqliteOutput', '⚠️ Database path required'); return; }
+
+    const r = await apiFetch(`/api/plugin/sqlite/tables?database=${encodeURIComponent(db)}`);
+    if (r.ok) {
+        const tables = r.data.tables || [];
+        const schemas = r.data.schemas || {};
+        const lines = tables.map(t => {
+            const cols = (schemas[t] || []).map(c => `  ${c.name} (${c.type})`).join('\n');
+            return `📋 ${t}:\n${cols}`;
+        });
+        phase2Output('sqliteOutput', lines.join('\n\n') || 'No tables found');
+    } else {
+        phase2Output('sqliteOutput', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Helper: showToast (if not defined elsewhere) ─────────────────────────────
+
+if (typeof showToast === 'undefined') {
+    window.showToast = function(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position:fixed;bottom:24px;right:24px;z-index:9999;
+            padding:0.75rem 1.25rem;border-radius:8px;
+            font-size:0.85rem;font-weight:600;
+            background:${type === 'success' ? 'rgba(0,255,128,0.15)' : type === 'error' ? 'rgba(255,79,79,0.15)' : 'rgba(0,212,255,0.15)'};
+            border:1px solid ${type === 'success' ? '#00ff80' : type === 'error' ? '#ff4f4f' : '#00d4ff'};
+            color:${type === 'success' ? '#00ff80' : type === 'error' ? '#ff4f4f' : '#00d4ff'};
+            box-shadow:0 4px 20px rgba(0,0,0,0.4);
+            animation:slideInRight 0.3s ease;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    };
+}
+
+if (typeof escapeHtml === 'undefined') {
+    window.escapeHtml = function(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    };
+}

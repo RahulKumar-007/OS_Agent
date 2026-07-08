@@ -3338,3 +3338,324 @@ h1, h2, h3, h4 {
     color: var(--success);
     box-shadow: 0 0 8px rgba(55, 240, 176, 0.15);
 }
+
+/* ══════════════════════════════════════════════════════
+   PHASE 2 STYLES
+   ══════════════════════════════════════════════════════ */
+
+/* Phase 2 Grid Layout */
+.phase2-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1.25rem;
+    padding: 1rem 0;
+}
+
+/* Phase 2 Card */
+.phase2-card {
+    background: var(--surface-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: border-color 0.2s;
+}
+.phase2-card:hover {
+    border-color: rgba(0, 212, 255, 0.3);
+}
+
+.phase2-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+.phase2-card-header svg { color: var(--accent-cyan); }
+.phase2-card-header h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+/* Phase 2 Inputs */
+.phase2-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+.phase2-input:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+.phase2-select {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.6rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+.phase2-select option { background: #0d1117; }
+
+/* Phase 2 Buttons */
+.phase2-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,212,255,0.08));
+    border: 1px solid rgba(0,212,255,0.4);
+    border-radius: 6px;
+    color: var(--accent-cyan);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.phase2-btn:hover {
+    background: linear-gradient(135deg, rgba(0,212,255,0.25), rgba(0,212,255,0.15));
+    border-color: var(--accent-cyan);
+}
+.phase2-btn-secondary {
+    background: rgba(255,255,255,0.04);
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+.phase2-btn-secondary:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+.phase2-btn-small { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+
+/* Phase 2 Row */
+.phase2-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Phase 2 Output */
+.phase2-output {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    min-height: 36px;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+/* Phase 2 Form Grid */
+.phase2-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.phase2-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.phase2-form-group label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.phase2-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+/* Phase 2 Table */
+.phase2-table-container {
+    overflow-x: auto;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+.phase2-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+.phase2-table th {
+    background: rgba(255,255,255,0.04);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+}
+.phase2-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text-secondary);
+}
+.phase2-table tr:last-child td { border-bottom: none; }
+.phase2-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* Phase 2 Tabs */
+.phase2-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    width: fit-content;
+}
+.phase2-tab {
+    padding: 0.4rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.phase2-tab.active {
+    background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(0,212,255,0.1));
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0,212,255,0.3);
+}
+.phase2-tab:hover:not(.active) { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
+
+/* Knowledge Base Layout */
+.kb-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.25rem;
+    height: calc(100vh - 220px);
+}
+.kb-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--surface-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    overflow: hidden;
+}
+.kb-notes-list {
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.kb-note-item {
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+}
+.kb-note-item:hover { background: rgba(255,255,255,0.04); border-color: var(--border); }
+.kb-note-item.active { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.3); }
+.kb-note-item-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
+.kb-note-item-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.kb-note-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    background: rgba(0,212,255,0.1);
+    border-radius: 3px;
+    font-size: 0.65rem;
+    color: var(--accent-cyan);
+    margin-right: 3px;
+}
+
+.kb-editor {
+    background: var(--surface-dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.kb-editor-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: rgba(0,0,0,0.2);
+}
+.kb-title-input {
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 100%;
+    font-family: inherit;
+}
+.kb-title-input:focus { outline: none; }
+.kb-content-editor {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 1rem;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    resize: none;
+}
+.kb-content-editor:focus { outline: none; }
+
+/* Job status badges */
+.job-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.job-badge.enabled { background: rgba(0,255,128,0.15); color: #00ff80; }
+.job-badge.disabled { background: rgba(255,255,255,0.08); color: var(--text-muted); }
+
+/* Scheduler job actions */
+.job-actions { display: flex; gap: 0.3rem; }
+.job-action-btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.job-action-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+.job-action-btn.danger:hover { border-color: var(--accent-red, #ff4f4f); color: var(--accent-red, #ff4f4f); }

@@ -35,8 +35,15 @@ from tools.security_tools import ALL_SECURITY_TOOLS
 from tools.system_tools import ALL_SYSTEM_TOOLS
 from tools.terminal_tools import ALL_TERMINAL_TOOLS
 from tools.web_tools import ALL_WEB_TOOLS
+# Phase 2 tools
+from tools.desktop_tools import ALL_DESKTOP_TOOLS
+from tools.plugin_tools import ALL_PLUGIN_TOOLS
 from indexing.index_store import IndexStore
 from indexing.indexer import IndexerService
+# Phase 2 services
+from scheduler.scheduler import scheduler_service
+from knowledge.kb import init_kb_db, kb
+from cache.cache import metadata_cache, search_cache
 
 # ─── Configuration ──────────────────────────────────────
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -76,6 +83,9 @@ async def lifespan(app: FastAPI):
         + ALL_SYSTEM_TOOLS
         + ALL_INDEX_TOOLS
         + ALL_WEB_TOOLS
+        # Phase 2
+        + ALL_DESKTOP_TOOLS
+        + ALL_PLUGIN_TOOLS
     )
     for tool in all_tools:
         registry.register(tool)
@@ -151,11 +161,21 @@ async def lifespan(app: FastAPI):
 
     # Wire up dependencies
     init_dependencies(llm_client, policy_engine, memory_store)
+
+    # ── Phase 2: Knowledge Base ──
+    await init_kb_db()
+    print("✅ Knowledge Base initialized")
+
+    # ── Phase 2: Scheduler ──
+    await scheduler_service.start()
+    print("✅ Task scheduler started")
+
     print("✅ All systems operational\n")
 
     yield
 
     # ── Shutdown ──
+    scheduler_service.stop()
     indexer.stop_watching()
     print("👋 Shutting down...")
 

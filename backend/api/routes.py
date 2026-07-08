@@ -6,7 +6,7 @@ import json
 import os
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
@@ -18,6 +18,9 @@ from permissions.policy import PolicyEngine
 from llm.client import LLMClient
 from memory.memory_store import MemoryStore
 from database.models import get_db
+from scheduler.scheduler import scheduler_service
+from knowledge.kb import kb
+from cache.cache import metadata_cache, search_cache
 
 
 # ─── Pydantic models ───────────────────────────────────
@@ -1102,3 +1105,570 @@ async def terminal_websocket(websocket: WebSocket):
             pass
         sender_task.cancel()
         session.close()
+
+
+# ══════════════════════════════════════════════════════
+# PHASE 2 ROUTES
+# ══════════════════════════════════════════════════════
+
+# ─── Desktop: Clipboard ─────────────────────────────────────────────────────
+
+@router.get("/api/desktop/clipboard")
+async def desktop_clipboard_read():
+    """Read the current system clipboard content."""
+    tool = registry.get("clipboard_read")
+    if not tool:
+        raise HTTPException(status_code=503, detail="clipboard_read not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class ClipboardWriteRequest(BaseModel):
+    text: str
+
+
+@router.post("/api/desktop/clipboard")
+async def desktop_clipboard_write(req: ClipboardWriteRequest):
+    """Write text to the system clipboard."""
+    tool = registry.get("clipboard_write")
+    if not tool:
+        raise HTTPException(status_code=503, detail="clipboard_write not available")
+    result = await tool.execute({"text": req.text})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/desktop/clipboard/history")
+async def desktop_clipboard_history(limit: int = 20):
+    """Get clipboard history (in-session)."""
+    tool = registry.get("clipboard_history")
+    if not tool:
+        raise HTTPException(status_code=503, detail="clipboard_history not available")
+    result = await tool.execute({"limit": limit})
+    return result.data
+
+
+# ─── Desktop: Screenshot ────────────────────────────────────────────────────
+
+class ScreenshotRequest(BaseModel):
+    mode: Optional[str] = "full"
+    x: Optional[int] = None
+    y: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    output: Optional[str] = None
+    delay: Optional[int] = 0
+
+
+@router.post("/api/desktop/screenshot")
+async def desktop_screenshot(req: ScreenshotRequest):
+    """Take a screenshot (full/window/region)."""
+    tool = registry.get("take_screenshot")
+    if not tool:
+        raise HTTPException(status_code=503, detail="take_screenshot not available")
+    args = {k: v for k, v in req.model_dump().items() if v is not None}
+    result = await tool.execute(args)
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    data = dict(result.data)
+    data.pop("image_base64", None)
+    return {"message": result.message, **data}
+
+
+# ─── Desktop: Notifications ─────────────────────────────────────────────────
+
+class NotifyRequest(BaseModel):
+    title: str
+    body: Optional[str] = ""
+    urgency: Optional[str] = "normal"
+    icon: Optional[str] = "dialog-information"
+    timeout: Optional[int] = 5000
+
+
+@router.post("/api/desktop/notify")
+async def desktop_notify(req: NotifyRequest):
+    """Send a native desktop notification."""
+    tool = registry.get("desktop_notify")
+    if not tool:
+        raise HTTPException(status_code=503, detail="desktop_notify not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"message": result.message}
+
+
+# ─── Desktop: Window Management ─────────────────────────────────────────────
+
+@router.get("/api/desktop/windows")
+async def desktop_list_windows():
+    """List all open windows."""
+    tool = registry.get("list_windows")
+    if not tool:
+        raise HTTPException(status_code=503, detail="list_windows not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/desktop/windows/active")
+async def desktop_active_window():
+    """Get the currently active/focused window."""
+    tool = registry.get("get_active_window")
+    if not tool:
+        raise HTTPException(status_code=503, detail="get_active_window not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class WindowActionRequest(BaseModel):
+    action: str
+    title: Optional[str] = ""
+    window_id: Optional[str] = ""
+
+
+@router.post("/api/desktop/windows/action")
+async def desktop_window_action(req: WindowActionRequest):
+    """Minimize, maximize, restore, close, or focus a window."""
+    if req.action == "focus":
+        tool = registry.get("focus_window")
+    else:
+        tool = registry.get("window_action")
+    if not tool:
+        raise HTTPException(status_code=503, detail="Window tool not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"message": result.message}
+
+
+# ─── Desktop: Display Info ──────────────────────────────────────────────────
+
+@router.get("/api/desktop/displays")
+async def desktop_display_info():
+    """Get connected monitor/display information."""
+    tool = registry.get("display_info")
+    if not tool:
+        raise HTTPException(status_code=503, detail="display_info not available")
+    result = await tool.execute({})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Plugin: VS Code ────────────────────────────────────────────────────────
+
+class VSCodeOpenRequest(BaseModel):
+    path: str
+    line: Optional[int] = None
+    new_window: Optional[bool] = False
+
+
+@router.post("/api/plugin/vscode/open")
+async def plugin_vscode_open(req: VSCodeOpenRequest):
+    """Open a file or directory in VS Code."""
+    tool = registry.get("vscode_open")
+    if not tool:
+        raise HTTPException(status_code=503, detail="vscode_open not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"message": result.message}
+
+
+# ─── Plugin: Docker ─────────────────────────────────────────────────────────
+
+@router.get("/api/plugin/docker/list")
+async def plugin_docker_list(list_type: str = "containers", all: bool = False):
+    """List Docker containers or images."""
+    tool = registry.get("docker_list")
+    if not tool:
+        raise HTTPException(status_code=503, detail="docker_list not available")
+    result = await tool.execute({"type": list_type, "all": all})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class DockerActionRequest(BaseModel):
+    action: str
+    container: Optional[str] = ""
+    image: Optional[str] = ""
+    force: Optional[bool] = False
+
+
+@router.post("/api/plugin/docker/action")
+async def plugin_docker_action(req: DockerActionRequest):
+    """Start, stop, restart, remove a Docker container."""
+    tool = registry.get("docker_action")
+    if not tool:
+        raise HTTPException(status_code=503, detail="docker_action not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return {"message": result.message, "data": result.data}
+
+
+@router.get("/api/plugin/docker/logs")
+async def plugin_docker_logs(container: str, tail: int = 50, since: str = ""):
+    """Get logs from a Docker container."""
+    tool = registry.get("docker_logs")
+    if not tool:
+        raise HTTPException(status_code=503, detail="docker_logs not available")
+    result = await tool.execute({"container": container, "tail": tail, "since": since})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class DockerExecRequest(BaseModel):
+    container: str
+    command: str
+
+
+@router.post("/api/plugin/docker/exec")
+async def plugin_docker_exec(req: DockerExecRequest):
+    """Execute a command inside a Docker container."""
+    tool = registry.get("docker_exec")
+    if not tool:
+        raise HTTPException(status_code=503, detail="docker_exec not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Plugin: Package Manager ────────────────────────────────────────────────
+
+class PackageRequest(BaseModel):
+    manager: str
+    action: str
+    package: Optional[str] = ""
+    global_flag: Optional[bool] = False
+    dry_run: Optional[bool] = False
+
+
+@router.post("/api/plugin/packages")
+async def plugin_packages(req: PackageRequest):
+    """Interact with apt, pip, npm, snap, or flatpak."""
+    tool = registry.get("package_manager")
+    if not tool:
+        raise HTTPException(status_code=503, detail="package_manager not available")
+    data = req.model_dump()
+    data["global"] = data.pop("global_flag", False)
+    result = await tool.execute(data)
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Plugin: HTTP / API Testing ─────────────────────────────────────────────
+
+class HTTPReqModel(BaseModel):
+    url: str
+    method: Optional[str] = "GET"
+    headers: Optional[dict] = None
+    params: Optional[dict] = None
+    json_body: Optional[dict] = None
+    form_data: Optional[dict] = None
+    text_body: Optional[str] = None
+    timeout: Optional[float] = 30
+    follow_redirects: Optional[bool] = True
+
+
+@router.post("/api/plugin/http")
+async def plugin_http_request(req: HTTPReqModel):
+    """Make an HTTP request and return the response."""
+    tool = registry.get("http_request")
+    if not tool:
+        raise HTTPException(status_code=503, detail="http_request not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Plugin: SQLite ─────────────────────────────────────────────────────────
+
+class SQLiteQueryModel(BaseModel):
+    database: str
+    sql: str
+    params: Optional[list] = None
+
+
+@router.post("/api/plugin/sqlite/query")
+async def plugin_sqlite_query(req: SQLiteQueryModel):
+    """Execute a SQL query against a local SQLite database."""
+    tool = registry.get("sqlite_query")
+    if not tool:
+        raise HTTPException(status_code=503, detail="sqlite_query not available")
+    result = await tool.execute(req.model_dump())
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.get("/api/plugin/sqlite/tables")
+async def plugin_sqlite_tables(database: str):
+    """List tables in a SQLite database."""
+    tool = registry.get("sqlite_list_tables")
+    if not tool:
+        raise HTTPException(status_code=503, detail="sqlite_list_tables not available")
+    result = await tool.execute({"database": database})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+# ─── Scheduler ──────────────────────────────────────────────────────────────
+
+class JobCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    trigger_type: str
+    trigger_data: dict
+    action_type: str
+    action_data: dict
+
+
+class JobUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    enabled: Optional[bool] = None
+    trigger_data: Optional[dict] = None
+    action_data: Optional[dict] = None
+
+
+@router.get("/api/scheduler/jobs")
+async def scheduler_list_jobs():
+    """List all scheduled jobs."""
+    jobs = await scheduler_service.list_jobs()
+    return {"jobs": jobs, "count": len(jobs)}
+
+
+@router.post("/api/scheduler/jobs")
+async def scheduler_create_job(req: JobCreateRequest):
+    """Create a new scheduled job."""
+    job = await scheduler_service.create_job(req.model_dump())
+    return job
+
+
+@router.get("/api/scheduler/jobs/{job_id}")
+async def scheduler_get_job(job_id: str):
+    """Get a specific scheduled job."""
+    job = await scheduler_service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.put("/api/scheduler/jobs/{job_id}")
+async def scheduler_update_job(job_id: str, req: JobUpdateRequest):
+    """Update a scheduled job."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    job = await scheduler_service.update_job(job_id, updates)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.delete("/api/scheduler/jobs/{job_id}")
+async def scheduler_delete_job(job_id: str):
+    """Delete a scheduled job."""
+    await scheduler_service.delete_job(job_id)
+    return {"status": "deleted", "id": job_id}
+
+
+@router.post("/api/scheduler/jobs/{job_id}/run")
+async def scheduler_run_now(job_id: str):
+    """Trigger a scheduled job immediately."""
+    job = await scheduler_service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await scheduler_service.run_now(job_id)
+    return {"status": "triggered", "id": job_id}
+
+
+@router.get("/api/scheduler/jobs/{job_id}/runs")
+async def scheduler_job_runs(job_id: str, limit: int = 20):
+    """Get execution history for a job."""
+    runs = await scheduler_service.get_job_runs(job_id, limit)
+    return {"runs": runs, "count": len(runs)}
+
+
+# ─── Knowledge Base ─────────────────────────────────────────────────────────
+
+class NoteCreateRequest(BaseModel):
+    title: str
+    content: str
+    tags: Optional[List[str]] = None
+    project: Optional[str] = ""
+
+
+class NoteUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[List[str]] = None
+    project: Optional[str] = None
+
+
+@router.get("/api/kb/notes")
+async def kb_list_notes(project: str = "", tag: str = "", limit: int = 100):
+    """List all notes."""
+    notes = await kb.list_notes(project=project, tag=tag, limit=limit)
+    return {"notes": notes, "count": len(notes)}
+
+
+@router.post("/api/kb/notes")
+async def kb_create_note(req: NoteCreateRequest):
+    """Create a new markdown note."""
+    note = await kb.create_note(
+        title=req.title,
+        content=req.content,
+        tags=req.tags,
+        project=req.project,
+    )
+    return note
+
+
+@router.get("/api/kb/search")
+async def kb_search(q: str, limit: int = 20):
+    """Full-text search across all notes."""
+    results = await kb.search_notes(q, limit=limit)
+    return {"results": results, "count": len(results)}
+
+
+@router.get("/api/kb/projects")
+async def kb_projects():
+    """List all projects with note counts."""
+    projects = await kb.list_projects()
+    return {"projects": projects}
+
+
+@router.get("/api/kb/notes/{note_id}")
+async def kb_get_note(note_id: str):
+    """Get a note by ID."""
+    note = await kb.get_note(note_id=note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
+@router.put("/api/kb/notes/{note_id}")
+async def kb_update_note(note_id: str, req: NoteUpdateRequest):
+    """Update an existing note."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    note = await kb.update_note(note_id, **updates)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
+@router.delete("/api/kb/notes/{note_id}")
+async def kb_delete_note(note_id: str):
+    """Delete a note."""
+    ok = await kb.delete_note(note_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"status": "deleted", "id": note_id}
+
+
+@router.get("/api/kb/notes/{note_id}/backlinks")
+async def kb_backlinks(note_id: str):
+    """Get all notes linking back to this note."""
+    note = await kb.get_note(note_id=note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    links = await kb.get_backlinks(note["slug"])
+    return {"backlinks": links, "count": len(links)}
+
+
+class ImportTextRequest(BaseModel):
+    title: str
+    text: str
+    tags: Optional[List[str]] = None
+    project: Optional[str] = ""
+
+
+@router.post("/api/kb/import")
+async def kb_import(req: ImportTextRequest):
+    """Import arbitrary text as a knowledge base note."""
+    note = await kb.import_text(req.title, req.text, req.tags, req.project)
+    return note
+
+
+# ─── Cache / Performance ─────────────────────────────────────────────────────
+
+@router.get("/api/cache/stats")
+async def cache_stats():
+    """Get cache statistics."""
+    return {
+        "metadata_cache": await metadata_cache.stats(),
+        "search_cache":   await search_cache.stats(),
+    }
+
+
+@router.delete("/api/cache/clear")
+async def cache_clear():
+    """Clear all caches."""
+    await metadata_cache.clear()
+    await search_cache.clear()
+    return {"status": "cleared"}
+
+
+# ─── Config / Settings Management ────────────────────────────────────────────
+
+@router.get("/api/config/dotfiles")
+async def config_list_dotfiles():
+    """List important dotfiles and config directories."""
+    home = os.path.expanduser("~")
+    common = [
+        ".bashrc", ".zshrc", ".profile", ".bash_profile", ".bash_aliases",
+        ".vimrc", ".gitconfig", ".gitignore_global",
+        ".tmux.conf", ".ssh/config", ".npmrc",
+        ".config/git/config",
+    ]
+    result = []
+    for f in common:
+        full = os.path.join(home, f)
+        if os.path.exists(full):
+            stat = os.stat(full)
+            result.append({
+                "path": full,
+                "name": f,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+    config_dir = os.path.join(home, ".config")
+    if os.path.isdir(config_dir):
+        for item in sorted(os.listdir(config_dir))[:30]:
+            full = os.path.join(config_dir, item)
+            if os.path.isdir(full):
+                result.append({"path": full, "name": f".config/{item}", "is_dir": True})
+    return {"dotfiles": result, "count": len(result)}
+
+
+@router.get("/api/config/installed-packages")
+async def config_installed_packages(manager: str = "pip"):
+    """Export installed packages list."""
+    tool = registry.get("package_manager")
+    if not tool:
+        raise HTTPException(status_code=503, detail="package_manager not available")
+    result = await tool.execute({"manager": manager, "action": "list"})
+    return {"manager": manager, "packages": result.data.get("stdout", "") if result.success else result.message}
+
+
+@router.get("/api/config/env")
+async def config_env_vars():
+    """Get safe environment variables (no secrets)."""
+    safe_prefixes = ("PATH", "HOME", "USER", "SHELL", "LANG", "TERM",
+                     "XDG", "DISPLAY", "WAYLAND", "GTK", "QT", "DBUS",
+                     "PYTHON", "NODE", "NPM", "JAVA")
+    env = {k: v for k, v in os.environ.items()
+           if any(k.startswith(p) for p in safe_prefixes)}
+    return {"env": env, "count": len(env)}

@@ -4,9 +4,13 @@ Natural language → Plan → Safe execution on your entire desktop.
 Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).  
 **100% offline. No data leaves your machine.**
 
-## UI
+## UI & Demo
 
-<img width="1920" alt="AEGIS UI" src="https://github.com/user-attachments/assets/9a0ced59-d3f4-4111-9f69-527591a50f4e" />
+
+
+https://github.com/user-attachments/assets/07e15044-990c-4bf5-a85f-23fc8e1a8d4e
+
+
 
 ---
 

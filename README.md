@@ -28,6 +28,16 @@ Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 | 🔢 **Multi-Step Reasoning** | Auto-chains: search → filter → act. No file paths needed |
 
 ### Phase 2 — OS Assistant
+- Desktop Automation (WindowManager, Clipboard, Notify)
+- App Integrations (VS Code, Docker, HTTP, SQLite, apt/pip)
+- Local Scheduler (cron-like SQLite backend)
+- Personal Knowledge Base (Markdown-based local wiki)
+
+### Phase 3 — Voice & Audio Intelligence
+- 100% Offline Speech-to-Text (`faster-whisper` / `openai-whisper`)
+- Offline Text-to-Speech (`pyttsx3` / `espeak`)
+- Audio Metadata Extraction (`ffprobe` / `mutagen`)
+- Batch transcription and audio library management
 | Feature | Description |
 |---------|-------------|
 | 🖥️ **Desktop Control** | Clipboard R/W + history, screenshots (full/window/region), native notifications, window management (list/focus/minimize/maximize/close), monitor detection |
@@ -135,7 +145,8 @@ OS_Agent/
 │   │   ├── index_tools.py      # FTS5 index management
 │   │   ├── duplicate_tools.py  # Hash & dedup
 │   │   ├── desktop_tools.py    # ← Phase 2: clipboard/screenshot/windows
-│   │   └── plugin_tools.py     # ← Phase 2: VS Code/Docker/packages/HTTP/SQLite
+│   │   ├── plugin_tools.py     # ← Phase 2: VS Code/Docker/packages/HTTP/SQLite
+│   │   └── voice_tools.py      # ← Phase 3: Offline STT/TTS (Whisper/pyttsx3)
 │   ├── scheduler/
 │   │   └── scheduler.py        # ← Phase 2: SQLite-backed task scheduler
 │   ├── knowledge/
@@ -331,6 +342,14 @@ llm:
 - `http_request` — Full HTTP client (GET/POST/PUT/PATCH/DELETE + headers/body/auth)
 - `sqlite_query` — Execute parameterized SQL on any .db file
 - `sqlite_list_tables` — List tables + schemas
+
+### Voice & Audio Intelligence (Phase 3)
+- `transcribe_audio` — STT via local Whisper model (audio/video files)
+- `batch_transcribe` — Directory-level mass transcription
+- `text_to_speech` — Speak text aloud via pyttsx3 or espeak
+- `save_speech_to_file` — Render TTS to a .wav audio file
+- `audio_info` — Retrieve ID3 tags, codecs, duration via ffprobe/mutagen
+- `list_audio_files` — Find all media files in a directory
 
 ### File Operations
 - `list_directory`, `read_file_metadata`, `search_files`

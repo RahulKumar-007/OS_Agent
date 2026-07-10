@@ -7,7 +7,7 @@ import os
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from pydantic import BaseModel
 
 from agent.planner import Planner
@@ -1672,3 +1672,220 @@ async def config_env_vars():
     env = {k: v for k, v in os.environ.items()
            if any(k.startswith(p) for p in safe_prefixes)}
     return {"env": env, "count": len(env)}
+
+
+# ─── Voice & Audio Intelligence (Phase 3) ───────────────────────────────────
+
+@router.get("/api/voice/status")
+async def voice_status():
+    """Check availability of STT (Whisper) and TTS engines."""
+    import shutil as _shutil
+
+    # STT check
+    stt = {"available": False, "faster_whisper": False, "openai_whisper": False}
+    try:
+        import faster_whisper  # noqa: F401
+        stt["available"] = True
+        stt["faster_whisper"] = True
+    except ImportError:
+        pass
+    if not stt["available"]:
+        try:
+            import whisper  # noqa: F401
+            stt["available"] = True
+            stt["openai_whisper"] = True
+        except ImportError:
+            pass
+
+    # TTS check
+    tts = {
+        "available": False,
+        "pyttsx3": False,
+        "espeak": bool(_shutil.which("espeak") or _shutil.which("espeak-ng")),
+        "festival": bool(_shutil.which("festival")),
+    }
+    try:
+        import pyttsx3  # noqa: F401
+        tts["pyttsx3"] = True
+    except ImportError:
+        pass
+    tts["available"] = tts["pyttsx3"] or tts["espeak"] or tts["festival"]
+
+    return {"stt": stt, "tts": tts}
+
+
+class VoiceTranscribeRequest(BaseModel):
+    path: str
+    model: Optional[str] = "base"
+    language: Optional[str] = None
+    save_to: Optional[str] = None
+
+
+@router.post("/api/voice/transcribe")
+async def voice_transcribe(request: VoiceTranscribeRequest):
+    """Transcribe a local audio/video file using Whisper."""
+    tool = registry.get("transcribe_audio")
+    if not tool:
+        raise HTTPException(status_code=503, detail="transcribe_audio tool not available")
+    result = await tool.execute({
+        "path": request.path,
+        "model": request.model or "base",
+        "language": request.language,
+        "save_to": request.save_to,
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+@router.post("/api/voice/transcribe-upload")
+async def voice_transcribe_upload(
+    file: UploadFile = File(...),
+    model: str = "base",
+    language: Optional[str] = None,
+):
+    """Upload an audio/video file and transcribe it via Whisper."""
+    import tempfile as _tempfile
+
+    tool = registry.get("transcribe_audio")
+    if not tool:
+        raise HTTPException(status_code=503, detail="transcribe_audio tool not available")
+
+    # Save upload to a temp file
+    suffix = os.path.splitext(file.filename or "audio")[1] or ".tmp"
+    with _tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        result = await tool.execute({
+            "path": tmp_path,
+            "model": model,
+            "language": language or None,
+        })
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.message)
+        return result.data
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
+class VoiceBatchRequest(BaseModel):
+    path: str
+    model: Optional[str] = "base"
+    language: Optional[str] = None
+    recursive: Optional[bool] = False
+    output_dir: Optional[str] = None
+
+
+@router.post("/api/voice/batch-transcribe")
+async def voice_batch_transcribe(request: VoiceBatchRequest):
+    """Batch-transcribe all audio/video files in a directory."""
+    tool = registry.get("batch_transcribe")
+    if not tool:
+        raise HTTPException(status_code=503, detail="batch_transcribe tool not available")
+    result = await tool.execute({
+        "path": request.path,
+        "model": request.model or "base",
+        "language": request.language,
+        "recursive": request.recursive,
+        "output_dir": request.output_dir,
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class TTSSpeakRequest(BaseModel):
+    text: str
+    rate: Optional[int] = 175
+    volume: Optional[float] = 1.0
+    voice: Optional[str] = ""
+
+
+@router.post("/api/voice/speak")
+async def voice_speak(request: TTSSpeakRequest):
+    """Speak text aloud via local TTS engine."""
+    tool = registry.get("text_to_speech")
+    if not tool:
+        raise HTTPException(status_code=503, detail="text_to_speech tool not available")
+    result = await tool.execute({
+        "text": request.text,
+        "rate": request.rate or 175,
+        "volume": request.volume if request.volume is not None else 1.0,
+        "voice": request.voice or "",
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class TTSSaveRequest(BaseModel):
+    text: str
+    output: Optional[str] = None
+    rate: Optional[int] = 175
+    voice: Optional[str] = ""
+
+
+@router.post("/api/voice/save-speech")
+async def voice_save_speech(request: TTSSaveRequest):
+    """Render TTS to a .wav file without playing it."""
+    tool = registry.get("save_speech_to_file")
+    if not tool:
+        raise HTTPException(status_code=503, detail="save_speech_to_file tool not available")
+    result = await tool.execute({
+        "text": request.text,
+        "output": request.output or "",
+        "rate": request.rate or 175,
+        "voice": request.voice or "",
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class AudioLibRequest(BaseModel):
+    path: str
+    recursive: Optional[bool] = False
+    include_video: Optional[bool] = True
+    include_audio: Optional[bool] = True
+    max_results: Optional[int] = 200
+
+
+@router.post("/api/voice/list-audio")
+async def voice_list_audio(request: AudioLibRequest):
+    """List audio/video files in a directory."""
+    tool = registry.get("list_audio_files")
+    if not tool:
+        raise HTTPException(status_code=503, detail="list_audio_files tool not available")
+    result = await tool.execute({
+        "path": request.path,
+        "recursive": request.recursive,
+        "include_video": request.include_video,
+        "include_audio": request.include_audio,
+        "max_results": request.max_results,
+    })
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+
+
+class AudioInfoRequest(BaseModel):
+    path: str
+
+
+@router.post("/api/voice/audio-info")
+async def voice_audio_info(request: AudioInfoRequest):
+    """Get technical metadata for an audio/video file."""
+    tool = registry.get("audio_info")
+    if not tool:
+        raise HTTPException(status_code=503, detail="audio_info tool not available")
+    result = await tool.execute({"path": request.path})
+    if not result.success:
+        raise HTTPException(status_code=400, detail=result.message)
+    return result.data
+

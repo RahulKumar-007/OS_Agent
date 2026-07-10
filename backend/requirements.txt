@@ -30,3 +30,17 @@ beautifulsoup4>=4.12.0
 # Phase 2: Desktop integration (system packages, not pip)
 # Install with: sudo apt install xclip scrot wmctrl xdotool libnotify-bin x11-xserver-utils
 # All desktop_tools.py capabilities gracefully degrade if these are not installed.
+
+# Phase 3: Voice & Audio Intelligence (all optional — degrade gracefully)
+# --- Speech-to-Text (choose one) ---
+# faster-whisper is recommended: smaller memory footprint, int8 quantized
+faster-whisper>=1.0.0
+# OR: pip install openai-whisper (heavier, requires torch)
+
+# --- Text-to-Speech ---
+pyttsx3>=2.90
+# System fallback: sudo apt install espeak-ng festival
+
+# --- Audio metadata ---
+mutagen>=1.47.0
+# System fallback: sudo apt install ffmpeg  (provides ffprobe)

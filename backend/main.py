@@ -38,6 +38,8 @@ from tools.web_tools import ALL_WEB_TOOLS
 # Phase 2 tools
 from tools.desktop_tools import ALL_DESKTOP_TOOLS
 from tools.plugin_tools import ALL_PLUGIN_TOOLS
+# Phase 3 tools
+from tools.voice_tools import ALL_VOICE_TOOLS
 from indexing.index_store import IndexStore
 from indexing.indexer import IndexerService
 # Phase 2 services
@@ -86,6 +88,8 @@ async def lifespan(app: FastAPI):
         # Phase 2
         + ALL_DESKTOP_TOOLS
         + ALL_PLUGIN_TOOLS
+        # Phase 3: Voice & Audio Intelligence
+        + ALL_VOICE_TOOLS
     )
     for tool in all_tools:
         registry.register(tool)

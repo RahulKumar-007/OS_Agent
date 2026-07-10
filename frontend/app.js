@@ -367,8 +367,8 @@ chatForm.addEventListener("submit", async (e) => {
   chatInput.value = "";
   chatInput.style.height = "auto";
 
-  // Show typing indicator
-  const typingEl = addTypingIndicator();
+  // Show thinking block (Claude Code style)
+  const thinkingEl = addThinkingBlock();
   setAiState("thinking");
 
   try {
@@ -378,10 +378,9 @@ chatForm.addEventListener("submit", async (e) => {
       body: JSON.stringify({ message }),
     });
 
-    typingEl.remove();
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      thinkingEl.remove();
       addMessage("agent", `❌ Error: ${err.detail || "Failed to create plan"}`);
       setAiState("idle");
       return;
@@ -390,11 +389,16 @@ chatForm.addEventListener("submit", async (e) => {
     const data = await res.json();
     currentTaskId = data.task_id;
     currentPlan = data.plan;
-    addPlanCard(data.plan, data.task_id);
-    setAiState("speaking");
-    setTimeout(() => setAiState("idle"), 1600);
+
+    // Mark thinking done, then show plan card
+    thinkingEl.markDone(data.plan?.steps || []);
+    setTimeout(() => {
+      addPlanCard(data.plan, data.task_id);
+      setAiState("speaking");
+      setTimeout(() => setAiState("idle"), 1600);
+    }, 600);
   } catch (err) {
-    typingEl.remove();
+    thinkingEl.remove();
     setAiState("idle");
     addMessage(
       "agent",
@@ -409,23 +413,170 @@ function useSuggestion(text) {
 }
 
 // ─── Message Rendering ─────────────────────────
+function formatTimestamp() {
+  const now = new Date();
+  return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+}
+
 function addMessage(role, content) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
+  const ts = formatTimestamp();
+  const metaHtml = role === 'agent'
+    ? `<div class="message-meta"><span class="message-time">${ts}</span><span class="message-model-tag">AEGIS</span></div>`
+    : `<div class="message-meta" style="justify-content:flex-end"><span class="message-time">${ts}</span></div>`;
   div.innerHTML = `
-        <div class="message-avatar">${role === "user" ? "U" : "A"}</div>
-        <div class="message-content">${escapeHtml(content)}</div>
-    `;
+    <div class="message-avatar"></div>
+    <div style="display:flex;flex-direction:column;">
+      <div class="message-content">${escapeHtml(content)}</div>
+      ${metaHtml}
+    </div>
+  `;
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return div;
+}
+
+// ─── Thinking Block (Claude Code style) ──────────
+let _cachedToolCount = null;
+async function getToolCount() {
+  if (_cachedToolCount) return _cachedToolCount;
+  try {
+    const r = await fetch(`${API_BASE}/api/tools`);
+    const d = await r.json();
+    _cachedToolCount = (d.tools || []).length;
+  } catch { _cachedToolCount = 40; }
+  return _cachedToolCount;
+}
+
+const THINKING_STEPS = [
+  { delay: 0,    text: () => `<span class="think-keyword">Parsing</span> natural language directive...` },
+  { delay: 400,  text: () => `<span class="think-keyword">Querying</span> tool registry — <span class="think-tool">${_cachedToolCount || '40+'} tools</span> available` },
+  { delay: 900,  text: () => `<span class="think-keyword">Constructing</span> execution plan...` },
+  { delay: 1500, text: () => `<span class="think-keyword">Validating</span> step dependencies &amp; args` },
+  { delay: 2100, text: () => `<span class="think-keyword">Checking</span> policy constraints &amp; permission flags` },
+  { delay: 2700, text: () => `<span class="think-keyword">Finalizing</span> plan structure<span class="think-cursor"></span>` },
+];
+// Pre-warm tool count
+getToolCount();
+
+
+function addThinkingBlock() {
+  const block = document.createElement("div");
+  block.className = "thinking-block";
+  block.innerHTML = `
+    <div class="thinking-header" id="thinkHeader">
+      <div class="thinking-icon" id="thinkIcon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </div>
+      <span class="thinking-title" id="thinkTitle">Reasoning…</span>
+      <span class="thinking-toggle">Click to expand</span>
+      <svg class="thinking-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+    <div class="thinking-body" id="thinkBody">
+      <div class="thinking-body-inner" id="thinkInner"></div>
+      <div class="thinking-footer">
+        <span>AEGIS INFERENCE ENGINE</span>
+        <span class="thinking-timer" id="thinkTimer">0.0s</span>
+      </div>
+    </div>
+  `;
+  chatMessages.appendChild(block);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  const header = block.querySelector('#thinkHeader');
+  const body   = block.querySelector('#thinkBody');
+  const inner  = block.querySelector('#thinkInner');
+  const icon   = block.querySelector('#thinkIcon');
+  const title  = block.querySelector('#thinkTitle');
+  const toggle = block.querySelector('.thinking-toggle');
+  const timer  = block.querySelector('#thinkTimer');
+
+  // Toggle collapse
+  header.addEventListener('click', () => {
+    const collapsed = header.classList.toggle('collapsed');
+    body.classList.toggle('hidden', collapsed);
+    toggle.textContent = collapsed ? 'Click to expand' : 'Click to collapse';
+  });
+
+  // Stream thinking steps
+  const startTime = Date.now();
+  let timerInterval = setInterval(() => {
+    timer.textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+  }, 100);
+
+  const addedLines = [];
+  THINKING_STEPS.forEach((step, i) => {
+    const t = setTimeout(() => {
+      // Mark previous line as done
+      if (i > 0 && addedLines[i - 1]) {
+        addedLines[i - 1].querySelector('.think-bullet').className = 'think-bullet done';
+        addedLines[i - 1].querySelector('.think-cursor')?.remove();
+      }
+      const line = document.createElement('div');
+      line.className = 'thinking-line';
+      line.style.animationDelay = '0s';
+      line.innerHTML = `
+        <div class="think-bullet active"></div>
+        <div class="think-text">${step.text()}</div>
+      `;
+      inner.appendChild(line);
+      inner.scrollTop = inner.scrollHeight;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      addedLines.push(line);
+    }, step.delay);
+    block._timers = block._timers || [];
+    block._timers.push(t);
+  });
+
+  // Mark done
+  block.markDone = (planSteps) => {
+    clearInterval(timerInterval);
+    const finalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    timer.textContent = finalTime + 's';
+    // Stop all pending timers
+    (block._timers || []).forEach(t => clearTimeout(t));
+    // Mark last active bullet done
+    inner.querySelectorAll('.think-bullet.active').forEach(b => b.className = 'think-bullet done');
+    inner.querySelectorAll('.think-cursor').forEach(c => c.remove());
+    // Add final summary line
+    if (planSteps && planSteps.length > 0) {
+      const line = document.createElement('div');
+      line.className = 'thinking-line';
+      line.innerHTML = `
+        <div class="think-bullet done"></div>
+        <div class="think-text"><span class="think-keyword">Plan ready</span> — <span class="think-tool">${planSteps.length} step${planSteps.length !== 1 ? 's' : ''}</span> queued for execution</div>
+      `;
+      inner.appendChild(line);
+    }
+    icon.className = 'thinking-icon done';
+    icon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+    title.textContent = `Thought for ${finalTime}s`;
+    toggle.textContent = 'Click to collapse';
+    // Auto-collapse after short delay
+    setTimeout(() => {
+      header.classList.add('collapsed');
+      body.classList.add('hidden');
+      toggle.textContent = 'Click to expand';
+    }, 2200);
+  };
+
+  return block;
 }
 
 function addTypingIndicator() {
   const div = document.createElement("div");
   div.className = "message agent";
   div.innerHTML = `
-        <div class="message-avatar">A</div>
+        <div class="message-avatar"></div>
         <div class="message-content">
             <div class="typing-indicator"><span></span><span></span><span></span></div>
         </div>
@@ -546,15 +697,13 @@ function addReportCard(report) {
     const rawId = "raw-" + Date.now();
     let stepsContent = "";
     report.steps.forEach((step) => {
-      const stepStatus =
-        step.status === "completed"
-          ? "✅"
-          : step.status === "denied"
-            ? "🚫"
-            : "❌";
+      const isOk = step.status === "completed";
+      const isDenied = step.status === "denied";
+      const stepStatus = isOk ? "✅" : isDenied ? "🚫" : "❌";
+      const statusClass = isOk ? "step-ok" : "step-fail";
       let dataHtml = step.data ? renderStepData(step.tool, step.data) : "";
       stepsContent += `
-                <div class="step-result">
+                <div class="step-result ${statusClass}">
                     <div class="step-result-header">
                         <span>${stepStatus} <strong>${escapeHtml(step.tool)}</strong></span>
                         <span class="step-result-msg">${escapeHtml(step.message || step.error || "")}</span>
@@ -3149,4 +3298,318 @@ if (typeof escapeHtml === 'undefined') {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
     };
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Voice & Audio Intelligence (Phase 3)
+// ═════════════════════════════════════════════════════════════════════════════
+
+async function voiceLoadStatus() {
+    const r = await apiFetch('/api/voice/status');
+    if (!r.ok) return;
+    const stt = r.data.stt;
+    const tts = r.data.tts;
+    
+    let html = '';
+    if (stt.available) {
+        const eng = stt.faster_whisper ? 'faster-whisper' : 'openai-whisper';
+        html += `<span class="job-badge enabled">STT: ${eng} ✓</span>`;
+    } else {
+        html += `<span class="job-badge disabled">STT: Not installed</span>`;
+    }
+    
+    if (tts.available) {
+        let engs = [];
+        if (tts.pyttsx3) engs.push('pyttsx3');
+        if (tts.espeak) engs.push('espeak');
+        if (tts.festival) engs.push('festival');
+        html += `<span class="job-badge enabled">TTS: ${engs.join(', ')} ✓</span>`;
+    } else {
+        html += `<span class="job-badge disabled">TTS: Not installed</span>`;
+    }
+    
+    const badges = document.getElementById('voiceStatusBadges');
+    if (badges) badges.innerHTML = html;
+}
+
+// Check status on load if page exists
+if (document.getElementById('page-voice')) {
+    setTimeout(voiceLoadStatus, 1500);
+}
+
+function voiceSwitchTab(tabId, btn) {
+    document.querySelectorAll('.phase2-tab-panel[id^="voice-"]').forEach(el => el.style.display = 'none');
+    document.getElementById('voice-' + tabId).style.display = 'block';
+    
+    const btns = document.getElementById('voiceTabs').querySelectorAll('.phase2-tab');
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    if (tabId === 'library' && document.getElementById('audioLibList').innerHTML === '—') {
+        audioLibBrowse();
+    }
+}
+
+// ── Transcribe (Single File) ──
+function voiceHandleFileSelect(input) {
+    if (input.files && input.files[0]) {
+        document.getElementById('voiceFilePath').value = '';
+        const name = input.files[0].name;
+        document.querySelector('.voice-drop-text').textContent = `Selected: ${name}`;
+    }
+}
+
+async function voiceTranscribeFile() {
+    const fileInput = document.getElementById('voiceFileUpload');
+    const pathInput = document.getElementById('voiceFilePath').value.trim();
+    const model = document.getElementById('voiceModel').value;
+    const lang = document.getElementById('voiceLang').value.trim() || null;
+    const saveTo = document.getElementById('voiceSaveTo').value.trim() || null;
+    
+    const btn = document.getElementById('voiceTranscribeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="typing-indicator"><span></span><span></span><span></span></span> Transcribing...';
+    
+    document.getElementById('voiceTranscriptWrap').style.display = 'none';
+    
+    try {
+        let r;
+        if (pathInput) {
+            // Local file path
+            r = await apiFetch('/api/voice/transcribe', {
+                method: 'POST',
+                body: JSON.stringify({ path: pathInput, model, language: lang, save_to: saveTo })
+            });
+        } else if (fileInput.files && fileInput.files[0]) {
+            // File upload
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            fd.append('model', model);
+            if (lang) fd.append('language', lang);
+            
+            const req = await fetch('/api/voice/transcribe-upload', {
+                method: 'POST',
+                body: fd
+            });
+            const data = await req.json();
+            r = { ok: req.ok, data };
+        } else {
+            showToast('Please provide a file or path', 'error');
+            return;
+        }
+        
+        if (r.ok) {
+            const d = r.data;
+            document.getElementById('voiceTranscriptMeta').innerHTML = `
+                <span>${d.duration_s}s • ${d.language} • ${d.model}</span>
+                <span>${d.segments} segments</span>
+            `;
+            document.getElementById('voiceTranscript').textContent = d.transcript;
+            document.getElementById('voiceTranscriptWrap').style.display = 'block';
+            if (d.saved_to) showToast(`Saved to ${d.saved_to}`, 'success');
+        } else {
+            showToast('Transcription failed: ' + (r.data.detail || 'Error'), 'error');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🎧 Transcribe';
+    }
+}
+
+function voiceCopyTranscript() {
+    const txt = document.getElementById('voiceTranscript').textContent;
+    if (txt) {
+        navigator.clipboard.writeText(txt);
+        showToast('Transcript copied to clipboard');
+    }
+}
+
+function voiceSpeakTranscript() {
+    const txt = document.getElementById('voiceTranscript').textContent;
+    if (txt) {
+        document.getElementById('ttsSpeakText').value = txt;
+        document.getElementById('voiceTabs').querySelectorAll('.phase2-tab')[2].click();
+        ttsSpeak();
+    }
+}
+
+// ── Batch Transcribe ──
+async function voiceBatchTranscribe() {
+    const path = document.getElementById('voiceBatchPath').value.trim();
+    if (!path) { showToast('Directory path required', 'error'); return; }
+    
+    const output_dir = document.getElementById('voiceBatchOutputDir').value.trim() || null;
+    const model = document.getElementById('voiceBatchModel').value;
+    const language = document.getElementById('voiceBatchLang').value.trim() || null;
+    const recursive = document.getElementById('voiceBatchRecursive').checked;
+    
+    const out = document.getElementById('voiceBatchOutput');
+    out.innerHTML = 'Starting batch transcription...\nDepending on file count and length, this may take a while.\n';
+    
+    const r = await apiFetch('/api/voice/batch-transcribe', {
+        method: 'POST',
+        body: JSON.stringify({ path, model, language, recursive, output_dir })
+    });
+    
+    if (r.ok) {
+        const d = r.data;
+        let html = `✅ Transcribed ${d.transcribed}/${d.total} files.\n\n`;
+        (d.files || []).forEach(f => {
+            if (f.transcript) {
+                html += `✓ ${f.file.split('/').pop()} -> ${f.transcript.split('/').pop()} (${f.duration_s}s)\n`;
+            } else {
+                html += `❌ ${f.file.split('/').pop()} -> Error: ${f.error}\n`;
+            }
+        });
+        out.innerHTML = html;
+    } else {
+        out.innerHTML = '❌ ' + (r.data.detail || 'Failed');
+    }
+}
+
+// ── Text to Speech ──
+async function ttsSpeak() {
+    const text = document.getElementById('ttsSpeakText').value.trim();
+    if (!text) { showToast('Text is required', 'error'); return; }
+    
+    const rate = parseInt(document.getElementById('ttsSpeakRate').value) || 175;
+    const volume = parseFloat(document.getElementById('ttsSpeakVolume').value) || 1.0;
+    const voice = document.getElementById('ttsSpeakVoice').value.trim();
+    
+    phase2Output('ttsSpeakResult', 'Speaking...');
+    const r = await apiFetch('/api/voice/speak', {
+        method: 'POST',
+        body: JSON.stringify({ text, rate, volume, voice })
+    });
+    
+    if (r.ok) {
+        phase2Output('ttsSpeakResult', `✅ Finished speaking via ${r.data.engine}.`);
+    } else {
+        phase2Output('ttsSpeakResult', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+async function ttsSaveFile() {
+    const text = document.getElementById('ttsSaveText').value.trim();
+    if (!text) { showToast('Text is required', 'error'); return; }
+    
+    const output = document.getElementById('ttsSaveOutput').value.trim() || null;
+    const rate = parseInt(document.getElementById('ttsSaveRate').value) || 175;
+    const voice = document.getElementById('ttsSaveVoice').value.trim();
+    
+    phase2Output('ttsSaveResult', 'Rendering audio...');
+    const r = await apiFetch('/api/voice/save-speech', {
+        method: 'POST',
+        body: JSON.stringify({ text, output, rate, voice })
+    });
+    
+    if (r.ok) {
+        phase2Output('ttsSaveResult', `✅ Saved to ${r.data.path} (${r.data.size} bytes) via ${r.data.engine}.`);
+    } else {
+        phase2Output('ttsSaveResult', '❌ ' + (r.data.detail || 'Error'));
+    }
+}
+
+// ── Audio Library ──
+async function audioLibBrowse() {
+    const path = document.getElementById('audioLibPath').value.trim() || '~/Music';
+    const recursive = document.getElementById('audioLibRecursive').checked;
+    const include_video = document.getElementById('audioLibIncVideo').checked;
+    
+    const container = document.getElementById('audioLibList');
+    container.innerHTML = '<p style="color:var(--text-muted);padding:1rem">Searching...</p>';
+    document.getElementById('audioInfoPanel').style.display = 'none';
+    
+    const r = await apiFetch('/api/voice/list-audio', {
+        method: 'POST',
+        body: JSON.stringify({ path, recursive, include_video, include_audio: true })
+    });
+    
+    if (r.ok) {
+        const files = r.data.files || [];
+        if (!files.length) {
+            container.innerHTML = '<p style="color:var(--text-muted);padding:1rem">No media files found.</p>';
+            return;
+        }
+        
+        container.innerHTML = files.map(f => {
+            const sizeMB = (f.size / 1024 / 1024).toFixed(1);
+            const icon = f.type === 'video' ? '🎬' : '🎵';
+            return `
+                <div class="voice-lib-item" onclick="audioLibInfo('${escapeHtml(f.path)}')">
+                    <div class="vli-title" title="${escapeHtml(f.name)}">${icon} ${escapeHtml(f.name)}</div>
+                    <div class="vli-meta">${sizeMB} MB • ${f.modified.split('T')[0]}</div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        container.innerHTML = `<p style="color:var(--danger);padding:1rem">${escapeHtml(r.data.detail || 'Error')}</p>`;
+    }
+}
+
+async function audioLibInfo(filePath) {
+    document.getElementById('audioInfoPanel').style.display = 'block';
+    const content = document.getElementById('audioInfoContent');
+    content.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem">Loading metadata...</p>';
+    
+    const r = await apiFetch('/api/voice/audio-info', {
+        method: 'POST',
+        body: JSON.stringify({ path: filePath })
+    });
+    
+    if (r.ok) {
+        const d = r.data;
+        const dur = d.duration_seconds ? `${Math.floor(d.duration_seconds / 60)}:${String(Math.floor(d.duration_seconds % 60)).padStart(2, '0')}` : '?';
+        const sizeMB = d.size_bytes ? (d.size_bytes / 1024 / 1024).toFixed(2) : '?';
+        
+        // Tags
+        let tagsHtml = '';
+        if (d.tags && Object.keys(d.tags).length) {
+            tagsHtml = '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+            for (const [k, v] of Object.entries(d.tags)) {
+                tagsHtml += `<div><span style="color:var(--text-muted);font-size:0.75rem;text-transform:uppercase">${escapeHtml(k)}</span><br><span style="font-size:0.85rem">${escapeHtml(v)}</span></div>`;
+            }
+            tagsHtml += '</div>';
+        }
+        
+        // Streams
+        let streamsHtml = '';
+        if (d.audio_streams && d.audio_streams.length) {
+            streamsHtml += `<div style="margin-top:8px;font-size:0.8rem;color:var(--cyan-soft)">Audio: ${d.audio_streams.map(s => `${s.codec} (${s.sample_rate || '?'}Hz, ${s.channels || '?'}ch)`).join(' | ')}</div>`;
+        }
+        if (d.video_streams && d.video_streams.length) {
+            streamsHtml += `<div style="margin-top:4px;font-size:0.8rem;color:var(--purple)">Video: ${d.video_streams.map(s => `${s.codec} (${s.width}x${s.height}, ${s.fps || '?'}fps)`).join(' | ')}</div>`;
+        }
+        
+        content.innerHTML = `
+            <div style="font-weight:600;font-size:1rem;color:var(--ice);word-break:break-all">${escapeHtml(d.filename)}</div>
+            <div style="font-family:var(--mono);font-size:0.8rem;color:var(--text-secondary);margin-top:4px">
+                ${dur} • ${sizeMB} MB • ${d.format || '?'} • ${d.bitrate_kbps ? d.bitrate_kbps + ' kbps' : ''}
+            </div>
+            ${streamsHtml}
+            ${tagsHtml}
+            <input type="hidden" id="audioInfoPath" value="${escapeHtml(d.path)}">
+        `;
+    } else {
+        content.innerHTML = `<p style="color:var(--danger);font-size:0.85rem">${escapeHtml(r.data.detail || 'Error loading metadata')}</p>`;
+    }
+}
+
+function audioInfoTranscribe() {
+    const path = document.getElementById('audioInfoPath')?.value;
+    if (path) {
+        document.getElementById('voiceFilePath').value = path;
+        document.getElementById('voiceTabs').querySelectorAll('.phase2-tab')[0].click();
+        voiceTranscribeFile();
+    }
+}
+
+function audioInfoSpeak() {
+    const text = document.getElementById('audioInfoContent')?.innerText;
+    if (text) {
+        document.getElementById('ttsSpeakText').value = "Metadata details:\n" + text;
+        document.getElementById('voiceTabs').querySelectorAll('.phase2-tab')[2].click();
+        ttsSpeak();
+    }
 }

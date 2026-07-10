@@ -1066,6 +1066,379 @@ h1, h2, h3, h4 {
 }
 
 /* ═══════════════════════════════════════════════
+   Thinking / Reasoning Block (Claude Code style)
+   ═══════════════════════════════════════════════ */
+.thinking-block {
+    align-self: flex-start;
+    max-width: 720px;
+    width: 100%;
+    animation: slideIn 0.3s ease;
+    margin-bottom: 4px;
+}
+
+.thinking-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(155, 123, 255, 0.06);
+    border: 1px solid rgba(155, 123, 255, 0.22);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: rgba(155, 123, 255, 0.85);
+    letter-spacing: 0.04em;
+}
+
+.thinking-header:hover {
+    background: rgba(155, 123, 255, 0.1);
+    border-color: rgba(155, 123, 255, 0.4);
+}
+
+.thinking-header.collapsed {
+    border-radius: var(--radius-sm);
+}
+
+.thinking-header:not(.collapsed) {
+    border-bottom: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.thinking-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(155, 123, 255, 0.5) 0%, rgba(155,123,255,0.08) 70%);
+    border: 1px solid rgba(155, 123, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    animation: thinkPulse 1.4s ease-in-out infinite;
+}
+
+.thinking-icon.done {
+    animation: none;
+    background: radial-gradient(circle, rgba(55,240,176,0.3) 0%, rgba(55,240,176,0.05) 70%);
+    border-color: rgba(55,240,176,0.5);
+}
+
+@keyframes thinkPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(155, 123, 255, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(155, 123, 255, 0); }
+}
+
+.thinking-icon svg {
+    width: 10px;
+    height: 10px;
+    color: #9b7bff;
+}
+
+.thinking-icon.done svg {
+    color: var(--success);
+}
+
+.thinking-title {
+    flex: 1;
+    font-weight: 500;
+}
+
+.thinking-toggle {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    transition: opacity var(--transition);
+}
+
+.thinking-header:hover .thinking-toggle {
+    opacity: 1;
+}
+
+.thinking-chevron {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.thinking-header.collapsed .thinking-chevron {
+    transform: rotate(-90deg);
+}
+
+.thinking-body {
+    background: rgba(8, 5, 18, 0.65);
+    border: 1px solid rgba(155, 123, 255, 0.22);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    overflow: hidden;
+    max-height: 340px;
+    transition: max-height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+}
+
+.thinking-body.hidden {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.thinking-body-inner {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    overflow-y: auto;
+    max-height: 320px;
+}
+
+.thinking-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(155, 123, 255, 0.06);
+    animation: thinkLineIn 0.25s ease;
+    opacity: 0;
+    animation-fill-mode: forwards;
+}
+
+@keyframes thinkLineIn {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: none; }
+}
+
+.think-bullet {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(155, 123, 255, 0.7);
+    margin-top: 7px;
+    flex-shrink: 0;
+}
+
+.think-bullet.active {
+    background: var(--cyan);
+    box-shadow: 0 0 6px var(--cyan);
+    animation: thinkBlink 0.8s ease-in-out infinite;
+}
+
+.think-bullet.done {
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
+    animation: none;
+}
+
+@keyframes thinkBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.think-text {
+    color: rgba(180, 160, 255, 0.7);
+    flex: 1;
+}
+
+.think-text .think-keyword {
+    color: var(--cyan-soft);
+    font-weight: 500;
+}
+
+.think-text .think-tool {
+    color: rgba(255, 180, 84, 0.85);
+    font-weight: 500;
+}
+
+.think-text .think-path {
+    color: rgba(55, 240, 176, 0.75);
+}
+
+.think-cursor {
+    display: inline-block;
+    width: 6px;
+    height: 12px;
+    background: rgba(155, 123, 255, 0.8);
+    margin-left: 2px;
+    animation: cursorBlink 1s step-end infinite;
+    vertical-align: text-bottom;
+    border-radius: 1px;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.thinking-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px 10px;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: rgba(155,123,255,0.4);
+    letter-spacing: 0.05em;
+    border-top: 1px dashed rgba(155,123,255,0.1);
+}
+
+.thinking-timer {
+    margin-left: auto;
+    color: rgba(155,123,255,0.35);
+}
+
+/* ── Improved message content with markdown-like code rendering ── */
+.message-content code {
+    font-family: var(--mono);
+    font-size: 0.82em;
+    background: rgba(79, 243, 255, 0.07);
+    border: 1px solid rgba(79, 243, 255, 0.15);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--cyan-soft);
+}
+
+.message-content pre {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin-top: 8px;
+    color: var(--text-primary);
+    line-height: 1.55;
+}
+
+/* ── Improved plan card: numbered steps with progress bar feel ── */
+.plan-card .plan-step {
+    transition: background var(--transition), border-color var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.plan-card .plan-step::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: rgba(79, 243, 255, 0.3);
+    border-radius: 2px;
+}
+
+.plan-card .plan-step.step-destructive::before {
+    background: rgba(255, 79, 109, 0.5);
+}
+
+/* ── Improved report card: cleaner step results ── */
+.step-result {
+    position: relative;
+    padding: 10px 12px 10px 18px;
+    border-top: 1px solid var(--border-glass);
+}
+
+.step-result::before {
+    content: "";
+    position: absolute;
+    left: 6px; top: 10px; bottom: 10px;
+    width: 2px;
+    background: var(--border-glass);
+    border-radius: 2px;
+}
+
+.step-result.step-ok::before { background: rgba(55, 240, 176, 0.4); }
+.step-result.step-fail::before { background: rgba(255, 79, 109, 0.4); }
+
+/* ── Improved avatars with AEGIS branding ── */
+.message.agent .message-avatar {
+    font-size: 0;
+    background: linear-gradient(135deg, rgba(155, 123, 255, 0.15), rgba(79, 243, 255, 0.08));
+    border: 1px solid rgba(155, 123, 255, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.message.agent .message-avatar::after {
+    content: "A";
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: var(--purple);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.message.user .message-avatar {
+    font-size: 0;
+    background: linear-gradient(135deg, rgba(79, 243, 255, 0.12), rgba(79, 243, 255, 0.04));
+    position: relative;
+    overflow: hidden;
+}
+
+.message.user .message-avatar::after {
+    content: "U";
+    font-size: 0.65rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: var(--cyan);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Agent message content: left border accent ── */
+.message.agent .message-content {
+    position: relative;
+    border-left: 2px solid rgba(155, 123, 255, 0.45);
+    background: linear-gradient(135deg, rgba(12,8,28,0.7), rgba(10,18,32,0.55));
+}
+
+/* ── User message: right border accent ── */
+.message.user .message-content {
+    border-right: 2px solid rgba(79, 243, 255, 0.4);
+    border-left: 1px solid rgba(79, 243, 255, 0.22);
+}
+
+/* ─── Timestamp on messages ─── */
+.message-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 0 4px;
+}
+
+.message-time {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+    letter-spacing: 0.04em;
+}
+
+.message-model-tag {
+    font-family: var(--font-display);
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(155,123,255,0.5);
+    background: rgba(155,123,255,0.07);
+    border: 1px solid rgba(155,123,255,0.15);
+    border-radius: 3px;
+    padding: 0 5px;
+}
+
+/* ═══════════════════════════════════════════════
    Command Console (bottom input dock)
    ═══════════════════════════════════════════════ */
 .permission-selector {
@@ -3659,3 +4032,113 @@ h1, h2, h3, h4 {
 }
 .job-action-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
 .job-action-btn.danger:hover { border-color: var(--accent-red, #ff4f4f); color: var(--accent-red, #ff4f4f); }
+
+/* ═══════════════════════════════════════════════
+   Voice & Audio Intelligence
+   ═══════════════════════════════════════════════ */
+
+/* Drop zone for audio upload */
+.voice-drop-zone {
+    border: 2px dashed rgba(79, 243, 255, 0.3);
+    border-radius: var(--radius);
+    padding: 30px;
+    text-align: center;
+    background: rgba(79, 243, 255, 0.02);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+}
+.voice-drop-zone:hover {
+    background: rgba(79, 243, 255, 0.05);
+    border-color: var(--cyan);
+}
+.voice-drop-icon {
+    font-size: 2rem;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+.voice-drop-text {
+    font-weight: 500;
+    color: var(--ice);
+    margin-bottom: 4px;
+}
+.voice-drop-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Transcript output */
+.voice-transcript {
+    font-family: var(--font);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    padding: 16px;
+    border-radius: 0 0 var(--radius) var(--radius);
+    border: 1px solid var(--border-glass-strong);
+    border-top: none;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.voice-meta-strip {
+    background: rgba(79, 243, 255, 0.08);
+    border: 1px solid var(--border-glass-strong);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 8px 16px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--cyan-soft);
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Audio Library Grid */
+.voice-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+.voice-lib-item {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.voice-lib-item:hover {
+    border-color: var(--cyan-soft);
+    box-shadow: var(--glow-cyan);
+    transform: translateY(-2px);
+}
+.voice-lib-item .vli-title {
+    font-weight: 600;
+    color: var(--ice);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.voice-lib-item .vli-meta {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--mono);
+}
+
+.voice-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.voice-check-label input { margin: 0; }

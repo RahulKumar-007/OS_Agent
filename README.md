@@ -12,7 +12,7 @@ Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 
 ## ✨ Feature Overview
 
-### Phase 1 — Core Intelligence
+### Core Intelligence
 | Feature | Description |
 |---------|-------------|
 | 🧠 **AI Chat Agent** | Natural language → structured plan → user approval → safe execution |
@@ -27,17 +27,7 @@ Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 | 📊 **System Monitor** | CPU/core, RAM, Disk I/O, Network, GPU (nvidia-smi), process tree |
 | 🔢 **Multi-Step Reasoning** | Auto-chains: search → filter → act. No file paths needed |
 
-### Phase 2 — OS Assistant
-- Desktop Automation (WindowManager, Clipboard, Notify)
-- App Integrations (VS Code, Docker, HTTP, SQLite, apt/pip)
-- Local Scheduler (cron-like SQLite backend)
-- Personal Knowledge Base (Markdown-based local wiki)
-
-### Phase 3 — Voice & Audio Intelligence
-- 100% Offline Speech-to-Text (`faster-whisper` / `openai-whisper`)
-- Offline Text-to-Speech (`pyttsx3` / `espeak`)
-- Audio Metadata Extraction (`ffprobe` / `mutagen`)
-- Batch transcription and audio library management
+### OS Assistant
 | Feature | Description |
 |---------|-------------|
 | 🖥️ **Desktop Control** | Clipboard R/W + history, screenshots (full/window/region), native notifications, window management (list/focus/minimize/maximize/close), monitor detection |
@@ -47,71 +37,50 @@ Powered by **any local LLM** (LM Studio, Ollama, or any OpenAI-compatible API).
 | ⚡ **Performance Layer** | TTL+LRU metadata cache (5000 entries), parallel async directory scanner (8 workers) |
 | ⚙️ **Config Management** | Dotfile enumeration, installed package export, safe env var inspection |
 
+### Voice & Audio Intelligence
+| Feature | Description |
+|---------|-------------|
+| 🎙️ **Offline STT** | 100% Offline Speech-to-Text (`faster-whisper` / `openai-whisper`) |
+| 🔊 **Offline TTS** | Offline Text-to-Speech (`pyttsx3` / `espeak`) for agent responses |
+| 🎵 **Audio Library** | Audio Metadata Extraction (`ffprobe` / `mutagen`), batch transcription |
+
 ---
 
 ## 🚀 Quick Start
 
-### 1. Run Setup
-```bash
-chmod +x setup.sh && ./setup.sh
-```
-
-### 2. Start Backend
-```bash
-source backend/venv/bin/activate
-cd backend && python main.py
-```
-Backend runs at `http://localhost:8000`
-
-### 3. Start Frontend
-```bash
-python3 -m http.server 3000 --directory frontend
-```
-Open `http://localhost:3000`
-
-### 4. Start Your LLM
-- **LM Studio**: Load a model → Start server (default port 1234)
-- **Ollama**: `ollama serve` → `ollama pull gemma3:4b`
-
-### 5. (Optional) Desktop Tools
-For clipboard, screenshots, notifications, and window management:
-```bash
-sudo apt install xclip scrot wmctrl xdotool libnotify-bin x11-xserver-utils
-```
+Please refer to `Usage_instructions.md` for complete setup and execution commands.
 
 ---
 
 ## 🏗️ Architecture
 
-```
-User (Browser)
-    │
-    ▼
-Frontend (HTML/CSS/JS)   ←──── WebSocket for real-time updates
-    │
-    ▼
-FastAPI Backend (port 8000)
-    ├── Agent Planner   →  Local LLM  →  Structured JSON plan
-    ├── Agent Executor  →  Policy Engine  →  Tool Runtime
-    ├── Synthesizer     →  LLM post-processor for results
-    │
-    ├── Tools (20 modules, 100+ tools)
-    │     ├── file_tools, fileops_tools, navigation_tools
-    │     ├── search_tools, index_tools, extraction_tools
-    │     ├── document_understanding_tools, image_understanding_tools
-    │     ├── security_tools, git_tools, terminal_tools
-    │     ├── system_tools, web_tools, exif_tools
-    │     ├── desktop_tools   ← Phase 2
-    │     └── plugin_tools    ← Phase 2
-    │
-    ├── Services
-    │     ├── scheduler/   ← SQLite-backed task scheduler
-    │     ├── knowledge/   ← Markdown wiki + FTS5
-    │     ├── cache/       ← TTL+LRU in-memory caches
-    │     ├── indexing/    ← Background FTS filesystem index
-    │     └── memory/      ← User preferences store
-    │
-    └── Permissions (policy.py) — deny rules always win
+```mermaid
+graph TD
+    User["User (Browser)"] -->|WebSocket / REST| Frontend
+    Frontend["Frontend (HTML/CSS/JS)"] -->|API Calls| Backend
+    
+    subgraph Backend ["FastAPI Backend (port 8000)"]
+        AgentPlanner["Agent Planner"]
+        AgentExecutor["Agent Executor"]
+        Synthesizer["Synthesizer"]
+        
+        AgentPlanner -->|NL → JSON| LocalLLM["Local LLM"]
+        AgentExecutor --> PolicyEngine["Policy Engine"]
+        PolicyEngine --> Tools
+        Synthesizer -->|Post-processing| LocalLLM
+        
+        Tools["Tools (100+)"]
+        
+        subgraph Services ["Core Services"]
+            Scheduler["Scheduler (SQLite-backed)"]
+            Knowledge["Knowledge Base (Markdown + FTS5)"]
+            Cache["Cache (TTL+LRU)"]
+            Indexer["Indexer (Background FTS)"]
+            Memory["Memory Store"]
+        end
+    end
+    
+    AgentExecutor -.-> Services
 ```
 
 ---
@@ -121,57 +90,27 @@ FastAPI Backend (port 8000)
 ```
 OS_Agent/
 ├── backend/
-│   ├── agent/
-│   │   ├── planner.py          # NL → JSON plan via LLM
-│   │   ├── executor.py         # Runs approved plans step-by-step
-│   │   └── synthesizer.py      # LLM post-processes raw results
-│   ├── api/
-│   │   └── routes.py           # All REST + WebSocket endpoints
-│   ├── tools/
-│   │   ├── base.py             # Tool interface & registry
-│   │   ├── file_tools.py       # Core filesystem operations
-│   │   ├── fileops_tools.py    # Batch ops, compress, organize
-│   │   ├── navigation_tools.py # Browse, common folders
-│   │   ├── search_tools.py     # FTS, semantic, code, document search
-│   │   ├── extraction_tools.py # PDF/Office/OCR text extraction
-│   │   ├── document_understanding_tools.py  # AI doc analysis
-│   │   ├── image_understanding_tools.py     # AI image analysis
-│   │   ├── security_tools.py   # Encryption, audit, sensitive data
-│   │   ├── git_tools.py        # Git integration
-│   │   ├── terminal_tools.py   # Shell command execution
-│   │   ├── system_tools.py     # CPU/RAM/disk/network/GPU/processes
-│   │   ├── web_tools.py        # Web search & scrape
-│   │   ├── exif_tools.py       # Photo EXIF metadata
-│   │   ├── index_tools.py      # FTS5 index management
-│   │   ├── duplicate_tools.py  # Hash & dedup
-│   │   ├── desktop_tools.py    # ← Phase 2: clipboard/screenshot/windows
-│   │   ├── plugin_tools.py     # ← Phase 2: VS Code/Docker/packages/HTTP/SQLite
-│   │   └── voice_tools.py      # ← Phase 3: Offline STT/TTS (Whisper/pyttsx3)
-│   ├── scheduler/
-│   │   └── scheduler.py        # ← Phase 2: SQLite-backed task scheduler
-│   ├── knowledge/
-│   │   └── kb.py               # ← Phase 2: Personal markdown wiki
-│   ├── cache/
-│   │   └── cache.py            # ← Phase 2: TTL+LRU cache layer
-│   ├── indexing/
-│   │   ├── indexer.py          # Background filesystem indexer
-│   │   └── index_store.py      # FTS5 SQLite store
-│   ├── permissions/
-│   │   └── policy.py           # Allow/deny path validation
-│   ├── llm/
-│   │   └── client.py           # OpenAI-compatible LLM client
-│   ├── memory/
-│   │   └── memory_store.py     # Persistent user preferences
-│   ├── database/
-│   │   └── models.py           # SQLite schema & init
-│   ├── config.yaml             # All configuration
-│   ├── main.py                 # FastAPI app entry point
+│   ├── agent/            # NL → JSON plan, executor, synthesizer
+│   ├── api/              # REST + WebSocket endpoints
+│   ├── tools/            # 100+ tools (file, search, desktop, voice, etc.)
+│   ├── scheduler/        # SQLite-backed task scheduler
+│   ├── knowledge/        # Personal markdown wiki
+│   ├── cache/            # TTL+LRU cache layer
+│   ├── indexing/         # Background filesystem indexer (FTS5)
+│   ├── permissions/      # Allow/deny path validation (policy.py)
+│   ├── llm/              # OpenAI-compatible LLM client
+│   ├── memory/           # Persistent user preferences
+│   ├── database/         # SQLite schema & init
+│   ├── config.yaml       # Configuration
+│   ├── main.py           # FastAPI app entry point
 │   └── requirements.txt
 ├── frontend/
-│   ├── index.html              # All pages (chat, explorer, monitor, terminal…)
-│   ├── styles.css              # Full design system
-│   └── app.js                  # All frontend logic
+│   ├── index.html        # UI pages
+│   ├── styles.css        # Design system
+│   └── app.js            # Frontend logic
 ├── setup.sh
+├── capability_test.py
+├── Usage_instructions.md
 └── README.md
 ```
 
@@ -208,11 +147,6 @@ llm:
 | POST | `/api/reject/{id}` | Reject plan |
 | GET | `/api/tasks` | Task history |
 | GET | `/api/tasks/{id}` | Task detail + executions |
-| GET/PUT | `/api/settings/llm` | LLM config |
-| GET | `/api/settings/llm/health` | LLM health check |
-| GET/PUT | `/api/permissions` | Path allow/deny rules |
-| GET/POST/DELETE | `/api/memory` | Agent memory store |
-| GET | `/api/tools` | List all registered tools |
 | WS | `/ws` | Real-time plan/execution updates |
 | WS | `/ws/terminal` | Interactive PTY shell |
 
@@ -220,13 +154,7 @@ llm:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/browse` | List directory contents |
-| GET | `/api/browse/info` | Directory summary |
-| GET | `/api/browse/common-folders` | Home, Documents, Downloads… |
-| GET/POST/DELETE | `/api/bookmarks` | Folder bookmarks |
-| GET/POST | `/api/recent-folders` | Recent navigation history |
-| POST | `/api/open` | Open file with default app |
-| GET | `/api/preview` | Preview text file content |
-| POST | `/api/fileop/*` | create-file, create-folder, rename, copy, move, trash, delete, compress, extract, restore, organize-by-extension, organize-by-date, organize-by-ai, batch-move, delete-duplicates |
+| POST | `/api/fileop/*` | create-file, create-folder, rename, copy, move, trash, delete, compress, extract, restore, organize |
 
 ### Search & Indexing
 | Method | Endpoint | Description |
@@ -235,164 +163,59 @@ llm:
 | POST | `/api/search/content` | Grep inside file content |
 | POST | `/api/search/documents` | Search inside PDFs/Office/OCR |
 | POST | `/api/search/semantic` | LLM-powered semantic search |
-| POST | `/api/search/code` | Code-aware repo search |
-| POST | `/api/extract/text` | Extract text from document |
-| POST | `/api/extract/batch` | Batch extract from directory |
-| GET | `/api/index/status` | FTS index status |
-| POST | `/api/index/rebuild` | Rebuild filesystem index |
 | GET | `/api/index/search` | Instant indexed filename search |
 
-### System Monitoring
+### System & Desktop
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/system/metrics` | CPU/RAM/disk/network/GPU |
-| GET | `/api/system/processes` | Process list or tree |
-| POST | `/api/system/kill` | Kill process by PID |
-| GET | `/api/system/connections` | Active network connections |
-
-### Web Intelligence
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/web/search` | DuckDuckGo search |
-| POST | `/api/web/scrape` | Fetch & extract page content |
-
-### 🖥️ Desktop Control (Phase 2)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
 | GET | `/api/desktop/clipboard` | Read clipboard content |
-| POST | `/api/desktop/clipboard` | Write text to clipboard |
-| GET | `/api/desktop/clipboard/history` | In-session copy history |
 | POST | `/api/desktop/screenshot` | Full/window/region screenshot |
 | POST | `/api/desktop/notify` | Native desktop notification |
-| GET | `/api/desktop/windows` | List all open windows |
-| GET | `/api/desktop/windows/active` | Active window info |
-| POST | `/api/desktop/windows/action` | Focus/minimize/maximize/close |
-| GET | `/api/desktop/displays` | Monitor detection & resolution |
 
-### 🔌 Plugins (Phase 2)
+### Scheduler & Knowledge Base
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/plugin/vscode/open` | Open file/folder in VS Code |
-| GET | `/api/plugin/docker/list` | List containers or images |
-| POST | `/api/plugin/docker/action` | Start/stop/restart/remove/pull |
-| GET | `/api/plugin/docker/logs` | Container logs |
-| POST | `/api/plugin/docker/exec` | Exec command in container |
-| POST | `/api/plugin/packages` | apt/pip/npm/snap/flatpak actions |
-| POST | `/api/plugin/http` | HTTP API request tester |
-| POST | `/api/plugin/sqlite/query` | Execute SQLite query |
-| GET | `/api/plugin/sqlite/tables` | List tables & schemas |
-
-### ⏰ Scheduler (Phase 2)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/scheduler/jobs` | List all scheduled jobs |
-| POST | `/api/scheduler/jobs` | Create a new job |
-| GET | `/api/scheduler/jobs/{id}` | Get job details |
-| PUT | `/api/scheduler/jobs/{id}` | Update job |
-| DELETE | `/api/scheduler/jobs/{id}` | Delete job |
-| POST | `/api/scheduler/jobs/{id}/run` | Trigger job immediately |
-| GET | `/api/scheduler/jobs/{id}/runs` | Execution history |
-
-### 📚 Knowledge Base (Phase 2)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/kb/notes` | List notes (filter by project/tag) |
-| POST | `/api/kb/notes` | Create markdown note |
-| GET | `/api/kb/notes/{id}` | Get note with content |
-| PUT | `/api/kb/notes/{id}` | Update note |
-| DELETE | `/api/kb/notes/{id}` | Delete note |
-| GET | `/api/kb/notes/{id}/backlinks` | Find notes linking here |
-| GET | `/api/kb/search` | Full-text search notes |
-| GET | `/api/kb/projects` | List projects with counts |
-| POST | `/api/kb/import` | Import arbitrary text as note |
-
-### ⚡ Cache & Config (Phase 2)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/cache/stats` | Cache hit rates & sizes |
-| DELETE | `/api/cache/clear` | Clear all caches |
-| GET | `/api/config/dotfiles` | List dotfiles & config dirs |
-| GET | `/api/config/installed-packages` | Export package list |
-| GET | `/api/config/env` | Safe environment variables |
+| GET/POST | `/api/scheduler/jobs` | Manage scheduled jobs |
+| GET/POST | `/api/kb/notes` | Manage markdown notes |
 
 ---
 
 ## 🛠️ Available Tools (100+)
 
 ### Desktop Environment
-- `clipboard_read` — Read system clipboard
-- `clipboard_write` — Write to clipboard, record history
-- `clipboard_history` — In-session clipboard history
-- `take_screenshot` — Full/window/region capture (scrot/gnome-screenshot/PIL)
-- `desktop_notify` — Native `notify-send` notifications with urgency
-- `list_windows` — All open windows via wmctrl/xdotool
-- `focus_window` — Focus a window by title or ID
-- `window_action` — Minimize/maximize/restore/close
-- `get_active_window` — Currently focused window
-- `display_info` — Monitor detection via xrandr
+- `clipboard_read`, `clipboard_write`, `clipboard_history`
+- `take_screenshot`, `desktop_notify`
+- `list_windows`, `focus_window`, `window_action`, `get_active_window`
+- `display_info`
 
 ### Application Plugins
-- `vscode_open` — Open file/folder in VS Code (code/codium/code-insiders)
-- `vscode_run_command` — Send command via VS Code CLI
-- `docker_list` — List containers or images (JSON formatted)
-- `docker_action` — start/stop/restart/rm/pull
-- `docker_logs` — Tail container logs
-- `docker_exec` — Execute command inside container
-- `package_manager` — apt/pip/npm/snap/flatpak: list/search/install/remove/update
-- `http_request` — Full HTTP client (GET/POST/PUT/PATCH/DELETE + headers/body/auth)
-- `sqlite_query` — Execute parameterized SQL on any .db file
-- `sqlite_list_tables` — List tables + schemas
+- `vscode_open`, `vscode_run_command`
+- `docker_list`, `docker_action`, `docker_logs`, `docker_exec`
+- `package_manager` (apt/pip/npm/snap/flatpak)
+- `http_request`, `sqlite_query`, `sqlite_list_tables`
 
-### Voice & Audio Intelligence (Phase 3)
-- `transcribe_audio` — STT via local Whisper model (audio/video files)
-- `batch_transcribe` — Directory-level mass transcription
-- `text_to_speech` — Speak text aloud via pyttsx3 or espeak
-- `save_speech_to_file` — Render TTS to a .wav audio file
-- `audio_info` — Retrieve ID3 tags, codecs, duration via ffprobe/mutagen
-- `list_audio_files` — Find all media files in a directory
+### Voice & Audio Intelligence
+- `transcribe_audio`, `batch_transcribe`
+- `text_to_speech`, `save_speech_to_file`
+- `audio_info`, `list_audio_files`
 
 ### File Operations
-- `list_directory`, `read_file_metadata`, `search_files`
-- `advanced_search` — Multi-filter (name, ext, size, date, owner, fuzzy, regex)
+- `list_directory`, `read_file_metadata`, `search_files`, `advanced_search`
 - `move_file`, `copy_file`, `rename_file`, `delete_file`, `create_directory`
-- `create_file`, `read_file_content`, `open_file`
-- `compress_files`, `extract_archive`
-- `trash_file`, `restore_from_trash`
+- `compress_files`, `extract_archive`, `trash_file`, `restore_from_trash`
 
-### Batch Operations
-- `batch_rename`, `batch_move`, `delete_duplicates`
-- `organize_by_extension`, `organize_by_date`, `organize_by_ai`
+### Search & Document AI
+- `search_by_content`, `search_documents`, `semantic_search`, `indexed_search`
+- `summarize_document`, `explain_document`, `extract_tables`
+- `describe_image`, `ocr_image`, `find_similar_images`
 
-### Search & Indexing
-- `search_by_content` — Grep inside files
-- `search_documents` — Inside PDFs/Office/OCR
-- `semantic_search` — LLM-powered intent search
-- `search_code` — Code-aware (skips node_modules, .git, etc.)
-- `indexed_search` — Instant FTS5 filename search
-- `rebuild_index`, `index_status`
+### Security & System
+- `view_permissions`, `edit_permissions`, `encrypt_file`, `decrypt_file`
+- `system_metrics`, `process_tree`, `terminal_session`, `kill_process`
 
-### Document & Image AI
-- `summarize_document`, `explain_document`, `compare_documents`
-- `extract_tables`, `find_similar_documents`, `summarize_folder`
-- `describe_image`, `ocr_image`, `find_similar_images`, `search_images_by_description`
-
-### Security
-- `view_permissions`, `edit_permissions`
-- `detect_sensitive_files`, `encrypt_file`, `decrypt_file`, `secure_delete`
-- `view_audit_log`
-
-### System & Terminal
-- `system_metrics` — CPU/RAM/Disk/Network/GPU
-- `process_tree`, `network_connections`
-- `terminal_session`, `terminal_history`
-- `env_vars`, `kill_process`
-
-### Git & Extraction
-- `git_status`, `git_add`, `git_commit`, `git_diff`, `git_log`
-- `git_branch`, `git_checkout`, `git_push`, `git_pull`
-- `extract_document_text`, `batch_extract_text`
-- `extract_exif`, `batch_rename_by_exif`
-- `hash_file`, `find_duplicates`
+### Git & Web
+- `git_status`, `git_commit`, `git_diff`, `git_pull`, `git_push`
 - `web_search`, `web_scrape`
 
 ---
@@ -440,16 +263,6 @@ Scheduler job:
   Action:  shell("tar -czf ~/backups/docs-$(date +%F).tar.gz ~/Documents")
   + notify: "Backup complete"
 ```
-
-```
-You: "Remember our authentication architecture"
-
-KB note created → next month →
-You: "Explain our auth flow"
-Agent: searches KB → finds note → explains it
-```
-
-See [MULTI_STEP_REASONING.md](MULTI_STEP_REASONING.md) for technical details.
 
 ---
 
